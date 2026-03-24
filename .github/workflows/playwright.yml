@@ -1,0 +1,68 @@
+name: Playwright UI Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  playwright:
+    runs-on: ubuntu-22.04
+    env:
+      CI: true
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Initialize submodules
+        run: git submodule update --init --recursive
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore dependencies
+        run: dotnet restore BTCPayServer.Plugins.Depix.Tests/BTCPayServer.Plugins.Depix.Tests.csproj /p:RazorCompileOnBuild=true
+
+      - name: Build BTCPay test host
+        run: dotnet build submodules/btcpayserver/BTCPayServer.Tests/BTCPayServer.Tests.csproj -c Debug --no-restore /p:RazorCompileOnBuild=true -maxcpucount:1
+
+      - name: Build DePix plugin
+        run: dotnet build BTCPayServer.Plugins.DePix/BTCPayServer.Plugins.Depix.csproj -c Debug --no-restore /p:RazorCompileOnBuild=true -maxcpucount:1
+
+      - name: Build DePix Playwright tests
+        run: dotnet build BTCPayServer.Plugins.Depix.Tests/BTCPayServer.Plugins.Depix.Tests.csproj -c Debug --no-restore --no-dependencies -maxcpucount:1
+
+      - name: Get Playwright version
+        id: playwright-version
+        run: |
+          PLAYWRIGHT_VERSION=$(grep -oP 'Microsoft\.Playwright" Version="\K[^"]+' BTCPayServer.Plugins.Depix.Tests/BTCPayServer.Plugins.Depix.Tests.csproj)
+          echo "version=$PLAYWRIGHT_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}-${{ hashFiles('BTCPayServer.Plugins.Depix.Tests/BTCPayServer.Plugins.Depix.Tests.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}-
+
+      - name: Install Playwright browsers
+        run: pwsh BTCPayServer.Plugins.Depix.Tests/bin/Debug/net8.0/playwright.ps1 install --with-deps
+
+      - name: Start BTCPay test infrastructure
+        env:
+          DOCKER_BUILDKIT: 1
+          COMPOSE_DOCKER_CLI_BUILD: 1
+        run: docker compose -f submodules/btcpayserver/BTCPayServer.Tests/docker-compose.yml up -d dev --build
+
+      - name: Run Playwright UI tests
+        run: dotnet test BTCPayServer.Plugins.Depix.Tests/BTCPayServer.Plugins.Depix.Tests.csproj -c Debug --no-build --filter "Category=PlaywrightUITest"
+
+      - name: Cleanup Docker
+        if: always()
+        run: docker compose -f submodules/btcpayserver/BTCPayServer.Tests/docker-compose.yml down --volumes
