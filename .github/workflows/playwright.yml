@@ -22,7 +22,7 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 8.0.x
+          dotnet-version: 10.0.x
 
       - name: Restore dependencies
         run: dotnet restore BTCPayServer.Plugins.Depix.Tests/BTCPayServer.Plugins.Depix.Tests.csproj /p:RazorCompileOnBuild=true
@@ -52,7 +52,7 @@ jobs:
             ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}-
 
       - name: Install Playwright browsers
-        run: pwsh BTCPayServer.Plugins.Depix.Tests/bin/Debug/net8.0/playwright.ps1 install --with-deps
+        run: pwsh BTCPayServer.Plugins.Depix.Tests/bin/Debug/net10.0/playwright.ps1 install --with-deps
 
       - name: Start BTCPay test infrastructure
         env:

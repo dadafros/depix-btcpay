@@ -69,7 +69,7 @@ public sealed class SharedPluginTestFixture : IDisposable
             "BTCPayServer.Plugins.DePix",
             "bin",
             GetBuildConfiguration(),
-            "net8.0",
+            "net10.0",
             PluginAssemblyName);
 
         if (!File.Exists(pluginDllPath))
