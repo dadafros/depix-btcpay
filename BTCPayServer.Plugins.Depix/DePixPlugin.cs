@@ -14,7 +14,7 @@ public class DePixPlugin : BaseBTCPayServerPlugin
     public const string PluginNavKey = nameof(DePixPlugin) + "Nav";
     public override IBTCPayServerPlugin.PluginDependency[] Dependencies { get; } =
     [
-        new() { Identifier = nameof(BTCPayServer), Condition = ">=2.1.6" },
+        new() { Identifier = nameof(BTCPayServer), Condition = ">=2.3.7" },
     ];
 
     internal static readonly PaymentMethodId PixPmid = new("PIX");
