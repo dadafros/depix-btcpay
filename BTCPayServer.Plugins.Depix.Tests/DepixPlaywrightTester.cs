@@ -4,6 +4,7 @@ using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using BTCPayServer.Tests;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Playwright;
 
 namespace BTCPayServer.Plugins.Depix.Tests;
@@ -36,11 +37,17 @@ public class DepixPlaywrightTester : PlaywrightTester
             TestLogs.LogInformation("BTCPay host is reachable; continuing after sync wait timeout caused by DePix chain registration.");
         }
 
+        var builder = new ConfigurationBuilder();
+        builder.AddUserSecrets("AB0AC1DD-9D26-485B-9416-56A33F268117");
+        builder.AddEnvironmentVariables();
+        var conf = builder.Build();
         var playwright = await Playwright.CreateAsync();
         var browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
         {
-            Headless = Server.PayTester.InContainer,
-            SlowMo = 0
+            Headless = Server.PayTester.InContainer || conf["PLAYWRIGHT_HEADLESS"] == "true",
+            ExecutablePath = conf["PLAYWRIGHT_EXECUTABLE"],
+            SlowMo = 0,
+            Args = ["--disable-frame-rate-limit"]
         });
         BrowserBackingField.SetValue(this, browser);
 

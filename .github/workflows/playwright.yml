@@ -9,6 +9,7 @@ jobs:
     runs-on: ubuntu-22.04
     env:
       CI: true
+      PLAYWRIGHT_HEADLESS: true
 
     steps:
       - name: Checkout repository
