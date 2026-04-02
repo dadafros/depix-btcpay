@@ -17,7 +17,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\BTCPayServer.Plugins.DePix\BTCPayServer.Plugins.Depix.csproj" />
+    <ProjectReference Include="..\BTCPayServer.Plugins.Depix\BTCPayServer.Plugins.Depix.csproj" />
     <ProjectReference Include="..\submodules\btcpayserver\BTCPayServer.Tests\BTCPayServer.Tests.csproj">
       <AdditionalProperties>RazorCompileOnBuild=true</AdditionalProperties>
     </ProjectReference>

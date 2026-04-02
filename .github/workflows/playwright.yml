@@ -31,7 +31,7 @@ jobs:
         run: dotnet build submodules/btcpayserver/BTCPayServer.Tests/BTCPayServer.Tests.csproj -c Debug --no-restore /p:RazorCompileOnBuild=true -maxcpucount:1
 
       - name: Build DePix plugin
-        run: dotnet build BTCPayServer.Plugins.DePix/BTCPayServer.Plugins.Depix.csproj -c Debug --no-restore /p:RazorCompileOnBuild=true -maxcpucount:1
+        run: dotnet build BTCPayServer.Plugins.Depix/BTCPayServer.Plugins.Depix.csproj -c Debug --no-restore /p:RazorCompileOnBuild=true -maxcpucount:1
 
       - name: Build DePix Playwright tests
         run: dotnet build BTCPayServer.Plugins.Depix.Tests/BTCPayServer.Plugins.Depix.Tests.csproj -c Debug --no-restore --no-dependencies -maxcpucount:1

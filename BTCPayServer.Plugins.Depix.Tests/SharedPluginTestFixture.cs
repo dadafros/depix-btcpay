@@ -15,7 +15,7 @@ public sealed class SharedPluginTestFixture : IDisposable
     private const string DebugPluginsEnvironmentVariable = "DEBUG_PLUGINS";
     private const string PluginDirEnvironmentVariable = "plugindir";
     private const string PrefixedPluginDirEnvironmentVariable = "BTCPAY_PLUGINDIR";
-    private const string PluginProjectFile = "BTCPayServer.Plugins.DePix/BTCPayServer.Plugins.Depix.csproj";
+    private const string PluginProjectFile = "BTCPayServer.Plugins.Depix/BTCPayServer.Plugins.Depix.csproj";
     private const string PluginAssemblyName = "BTCPayServer.Plugins.Depix.dll";
     private readonly string? _originalDebugPlugins;
     private readonly string? _originalPluginDir;
@@ -66,7 +66,7 @@ public sealed class SharedPluginTestFixture : IDisposable
     {
         var pluginDllPath = Path.Combine(
             repositoryRoot,
-            "BTCPayServer.Plugins.DePix",
+            "BTCPayServer.Plugins.Depix",
             "bin",
             GetBuildConfiguration(),
             "net10.0",
