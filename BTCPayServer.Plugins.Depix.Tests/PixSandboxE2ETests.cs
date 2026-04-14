@@ -51,6 +51,11 @@ public class PixSandboxE2ETests : PlaywrightBaseTest
 
         await InitializeStoreOwnerAsync();
 
+        // BTC on-chain wallet is required — BTCPay won't create invoices for a store
+        // without at least one payment method. This mirrors the setup every BTCPay
+        // Playwright test does before calling CreateInvoice.
+        await Tester.AddDerivationScheme();
+
         // Step 1: create an invoice before PIX is enabled. USD is used because BRL rate
         // feeds are not available in the regtest CI environment. Creating the invoice first
         // avoids triggering ConfigurePrompt (which requires a Liquid wallet not present in CI).
