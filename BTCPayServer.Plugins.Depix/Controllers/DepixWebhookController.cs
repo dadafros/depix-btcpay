@@ -9,6 +9,7 @@ using BTCPayServer.Plugins.Depix.Services;
 using BTCPayServer.Services.Invoices;
 using BTCPayServer.Services.Stores;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 namespace BTCPayServer.Plugins.Depix.Controllers;
