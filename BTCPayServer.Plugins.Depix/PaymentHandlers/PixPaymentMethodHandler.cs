@@ -6,6 +6,7 @@ using BTCPayServer.Data;
 using BTCPayServer.Payments;
 using BTCPayServer.Payments.Bitcoin;
 using BTCPayServer.Plugins.Altcoins;
+using BTCPayServer.Plugins.Depix.Errors;
 using BTCPayServer.Plugins.Depix.Services;
 using Microsoft.AspNetCore.Http;
 using Newtonsoft.Json.Linq;
@@ -79,8 +80,17 @@ public class PixPaymentMethodHandler(
             callbackUrl,
             CancellationToken.None);
 
-        // Reserve address only after checkout is created — avoids orphaned Liquid addresses on API failures
-        var address = await depixService.GenerateFreshDePixAddress(store.Id);
+        // Reserve address only after checkout is created — avoids orphaned Liquid addresses on API failures.
+        // Wrap plugin exceptions so BTCPay treats a missing Liquid wallet as "method unavailable" rather than a hard error.
+        string address;
+        try
+        {
+            address = await depixService.GenerateFreshDePixAddress(store.Id);
+        }
+        catch (Exception ex) when (ex is PixPluginException or PixPaymentException)
+        {
+            throw new PaymentMethodUnavailableException($"DePix Liquid wallet not configured: {ex.Message}");
+        }
 
         depixService.ApplyPromptDetails(context, checkout, address);
     }

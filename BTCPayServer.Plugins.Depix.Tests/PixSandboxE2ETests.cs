@@ -51,23 +51,24 @@ public class PixSandboxE2ETests : PlaywrightBaseTest
 
         await InitializeStoreOwnerAsync();
 
-        // Step 1: save real credentials via the store settings UI.
+        // Step 1: create an invoice before PIX is enabled. USD is used because BRL rate
+        // feeds are not available in the regtest CI environment. Creating the invoice first
+        // avoids triggering ConfigurePrompt (which requires a Liquid wallet not present in CI).
+        var invoiceId = await Tester.CreateInvoice(10m, "USD");
+        Assert.False(string.IsNullOrEmpty(invoiceId));
+
+        // Step 2: save real credentials via the store settings UI.
         // PixController validates the API key against GET /api/me before saving.
+        // Done after invoice creation so PIX is not yet enabled when the invoice is created.
         await GoToPixSettingsAsync();
         await Page.Locator("#ApiKey").FillAsync(apiKey);
         await Page.Locator("#WebhookSecret").FillAsync(webhookSecret);
         await Page.GetByRole(AriaRole.Button, new() { Name = "Save" }).ClickAsync();
         await Tester.FindAlertMessage(partialText: "Pix configuration applied");
 
-        // Step 2: create an invoice. USD is used because BRL rate feeds are not
-        // available in the regtest CI environment. The invoice currency doesn't affect
-        // webhook processing — the PIX prompt is injected directly in the next step.
-        var invoiceId = await Tester.CreateInvoice(10m, "USD");
-        Assert.False(string.IsNullOrEmpty(invoiceId));
-
         // Step 3: inject a fake DePix checkout ID directly into the invoice Blob2.
-        // ConfigurePrompt (which would normally do this) requires a Liquid wallet that
-        // is not available in the CI test environment, so we bypass it here.
+        // ConfigurePrompt (which would normally do this) requires a Liquid wallet not
+        // present in the CI test environment, so we bypass it with a direct SQL write.
         var checkoutId = $"test-{Guid.NewGuid():N}";
         await InjectPixPromptAsync(invoiceId, checkoutId);
 
