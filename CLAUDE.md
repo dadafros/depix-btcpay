@@ -121,6 +121,36 @@ dotnet test BTCPayServer.Plugins.Depix.Tests/ --filter "Category=PlaywrightUITes
 
 Note: `dotnet` is not installed on the local dev machine. Use CI (GitHub Actions) for build verification, or install .NET 10.0 SDK locally.
 
+## Releasing a new version
+
+1. **Bump the version** in `BTCPayServer.Plugins.Depix/BTCPayServer.Plugins.Depix.csproj`:
+   ```xml
+   <Version>1.0.6</Version>
+   ```
+
+2. **Commit and push to master**:
+   ```bash
+   git add BTCPayServer.Plugins.Depix/BTCPayServer.Plugins.Depix.csproj
+   git commit -m "chore: bump version to 1.0.6"
+   git push git@github-personal:dadafros/depix-btcpay.git HEAD:master
+   ```
+
+3. **Tag the release** (must be on the correct commit after push):
+   ```bash
+   git tag v1.0.6
+   git push git@github-personal:dadafros/depix-btcpay.git v1.0.6
+   ```
+
+4. **CI does the rest**: `.github/workflows/release.yml` triggers on `v*` tags, builds the plugin with `dotnet publish`, packages it as `BTCPayServer.Plugins.Depix.btcpay`, and creates a GitHub Release at `github.com/dadafros/depix-btcpay/releases/tag/v1.0.6` with the `.btcpay` file attached.
+
+If the tag needs to be moved after a fix (e.g. CI failed and you pushed another commit):
+```bash
+git tag -d v1.0.6
+git push git@github-personal:dadafros/depix-btcpay.git :refs/tags/v1.0.6
+git tag v1.0.6
+git push git@github-personal:dadafros/depix-btcpay.git v1.0.6
+```
+
 ## Git
 
 - Remote: `git@github-personal:dadafros/depix-btcpay.git`
