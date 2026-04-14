@@ -96,4 +96,4 @@ For questions or issues with the DePix plugin, join the [Telegram group](https:/
 
 ## License
 
-MIT
+All rights reserved.
