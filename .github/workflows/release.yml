@@ -1,0 +1,55 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Initialize submodules
+        run: git submodule update --init --recursive
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore dependencies
+        run: dotnet restore BTCPayServer.Plugins.Depix/BTCPayServer.Plugins.Depix.csproj /p:RazorCompileOnBuild=true
+
+      - name: Publish plugin
+        run: |
+          dotnet publish BTCPayServer.Plugins.Depix/BTCPayServer.Plugins.Depix.csproj \
+            -c Release \
+            --no-restore \
+            /p:RazorCompileOnBuild=true \
+            -o publish
+
+      - name: Package as .btcpay
+        run: |
+          PLUGIN_NAME="BTCPayServer.Plugins.Depix"
+          # If the SDK already produced a .btcpay file, use it; otherwise zip the publish output
+          if [ -f "publish/${PLUGIN_NAME}.btcpay" ]; then
+            cp "publish/${PLUGIN_NAME}.btcpay" "${PLUGIN_NAME}.btcpay"
+          else
+            cd publish && zip -r "../${PLUGIN_NAME}.btcpay" . && cd ..
+          fi
+          echo "PLUGIN_FILE=${PLUGIN_NAME}.btcpay" >> "$GITHUB_ENV"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.PLUGIN_FILE }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

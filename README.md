@@ -24,7 +24,16 @@ The plugin adds two payment methods to your store:
 
 ### 1. Install the plugin
 
-Install in BTCPay via **Plugins > Manage Plugins**. Restart when prompted.
+**Option A — BTCPay plugin store (when available)**
+
+In BTCPay: **Plugins → Manage Plugins → search for DePix**. Restart when prompted.
+
+**Option B — Manual install (available now)**
+
+1. Go to [**Releases**](https://github.com/dadafros/depix-btcpay/releases) and download the latest `BTCPayServer.Plugins.Depix.btcpay` file.
+2. In BTCPay: **Plugins → Manage Plugins → Upload Plugin**.
+3. Select the downloaded `.btcpay` file and confirm.
+4. Restart BTCPay when prompted.
 
 When installed, the DePix (Liquid) asset is automatically registered for your store.
 
