@@ -74,9 +74,7 @@ public abstract class PlaywrightBaseTest : IAsyncLifetime
     }
 
     protected async Task SeedValidStorePixConfigAsync(
-        bool isEnabled = false,
-        bool useWhitelist = false,
-        bool passFeeToCustomer = false)
+        bool isEnabled = false)
     {
         var storeId = Tester.StoreId ?? throw new InvalidOperationException("Create a store before seeding Pix configuration.");
         var storeRepository = Server.PayTester.GetService<StoreRepository>();
@@ -86,10 +84,8 @@ public abstract class PlaywrightBaseTest : IAsyncLifetime
         var config = new JObject
         {
             ["encryptedApiKey"] = ProtectSecret("fixture-api-key"),
-            ["webhookSecretHashHex"] = ComputeSecretHash("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"),
-            ["isEnabled"] = isEnabled,
-            ["useWhitelist"] = useWhitelist,
-            ["passFeeToCustomer"] = passFeeToCustomer
+            ["encryptedWebhookSecret"] = ProtectSecret("whsec_fixture_secret_value"),
+            ["isEnabled"] = isEnabled
         };
 
         store.SetPaymentMethodConfig(PixPaymentMethodId, config);
@@ -115,15 +111,11 @@ public abstract class PlaywrightBaseTest : IAsyncLifetime
 
         return new PixStoreConfigSnapshot(
             config.Value<string>("encryptedApiKey") ?? config.Value<string>("EncryptedApiKey"),
-            config.Value<string>("webhookSecretHashHex") ?? config.Value<string>("WebhookSecretHashHex"),
-            config.Value<bool?>("isEnabled") ?? config.Value<bool?>("IsEnabled") ?? false,
-            config.Value<bool?>("useWhitelist") ?? config.Value<bool?>("UseWhitelist") ?? false,
-            config.Value<bool?>("passFeeToCustomer") ?? config.Value<bool?>("PassFeeToCustomer") ?? false);
+            config.Value<string>("encryptedWebhookSecret") ?? config.Value<string>("EncryptedWebhookSecret"),
+            config.Value<bool?>("isEnabled") ?? config.Value<bool?>("IsEnabled") ?? false);
     }
 
-    protected async Task SeedValidServerPixConfigAsync(
-        bool useWhitelist = false,
-        bool passFeeToCustomer = false)
+    protected async Task SeedValidServerPixConfigAsync()
     {
         var settingsRepository = Server.PayTester.GetService<ISettingsRepository>();
         var pluginAssembly = GetPluginRuntimeAssembly();
@@ -133,9 +125,7 @@ public abstract class PlaywrightBaseTest : IAsyncLifetime
                     ?? throw new InvalidOperationException($"Could not create {PixServerConfigTypeName}.");
 
         configType.GetProperty("EncryptedApiKey")!.SetValue(config, ProtectSecret("fixture-server-api-key"));
-        configType.GetProperty("WebhookSecretHashHex")!.SetValue(config, ComputeSecretHash("abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"));
-        configType.GetProperty("UseWhitelist")!.SetValue(config, useWhitelist);
-        configType.GetProperty("PassFeeToCustomer")!.SetValue(config, passFeeToCustomer);
+        configType.GetProperty("EncryptedWebhookSecret")!.SetValue(config, ProtectSecret("whsec_fixture_server_secret"));
 
         var updateMethod = settingsRepository.GetType()
             .GetMethods(BindingFlags.Instance | BindingFlags.Public)
@@ -178,16 +168,8 @@ public abstract class PlaywrightBaseTest : IAsyncLifetime
                         ?? throw new InvalidOperationException("ISecretProtector.Protect returned null."));
     }
 
-    private static string ComputeSecretHash(string secret)
-    {
-        var bytes = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(secret));
-        return Convert.ToHexString(bytes).ToLowerInvariant();
-    }
-
     protected sealed record PixStoreConfigSnapshot(
         string? EncryptedApiKey,
-        string? WebhookSecretHashHex,
-        bool IsEnabled,
-        bool UseWhitelist,
-        bool PassFeeToCustomer);
+        string? EncryptedWebhookSecret,
+        bool IsEnabled);
 }

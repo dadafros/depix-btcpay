@@ -19,8 +19,6 @@ public class PixServerSettingsController(
     DepixService depixService)
     : Controller
 {
-    private const string OneShotSecretKey = "ServerOneShotSecret";
-
     [HttpGet("settings")]
     public async Task<IActionResult> PixServerSettings()
     {
@@ -36,37 +34,31 @@ public class PixServerSettingsController(
                 maskedApiKey = "••••••••" + plain[^4..];
         }
 
-        var oneShotSecret = TempData[OneShotSecretKey] as string;
+        var maskedWebhookSecret = "";
+        if (!string.IsNullOrEmpty(cfg.EncryptedWebhookSecret))
+        {
+            var plain = protector.Unprotect(cfg.EncryptedWebhookSecret);
+            if (!string.IsNullOrEmpty(plain))
+                maskedWebhookSecret = "••••••••" + plain[^4..];
+        }
 
         var apiKeyConfigured = !string.IsNullOrEmpty(cfg.EncryptedApiKey);
-        var isServerCfgValid = DepixService.IsConfigValid(cfg.EncryptedApiKey, cfg.WebhookSecretHashHex);
+        var isServerCfgValid = DepixService.IsConfigValid(cfg.EncryptedApiKey, cfg.EncryptedWebhookSecret);
 
-        string secretDisplay;
-        if (!string.IsNullOrEmpty(oneShotSecret))
-            secretDisplay = "";
-        else if (!string.IsNullOrEmpty(cfg.WebhookSecretHashHex))
-            secretDisplay = "<stored securely – regenerate to view a new one>";
+        string webhookSecretDisplay;
+        if (isServerCfgValid)
+            webhookSecretDisplay = maskedWebhookSecret;
         else
-            secretDisplay = "<will be generated on Save>";
+            webhookSecretDisplay = "<not configured>";
 
         var model = new PixServerSettingsViewModel
         {
             ApiKey = maskedApiKey,
-
+            WebhookSecret = "",
             WebhookUrl = webhookUrl,
-            WebhookSecretDisplay = secretDisplay,
-
-            OneShotSecretToDisplay = oneShotSecret,
-            RegenerateWebhookSecret = false,
-
-            TelegramRegisterCommand = string.IsNullOrEmpty(oneShotSecret)
-                ? null
-                : $"/registerwebhook deposit {webhookUrl} {oneShotSecret}",
-
+            WebhookSecretDisplay = webhookSecretDisplay,
             ApiKeyConfigured = apiKeyConfigured,
             IsServerCfgValid = isServerCfgValid,
-            UseWhitelist = cfg.UseWhitelist,
-            PassFeeToCustomer = cfg.PassFeeToCustomer
         };
 
         return View(model);
@@ -77,8 +69,6 @@ public class PixServerSettingsController(
     public async Task<IActionResult> PixServerSettings(PixServerSettingsViewModel viewModel)
     {
         var cfg = await settingsRepository.GetSettingAsync<PixServerConfig>() ?? new PixServerConfig();
-        cfg.UseWhitelist = viewModel.UseWhitelist;
-        cfg.PassFeeToCustomer = viewModel.PassFeeToCustomer;
 
         var newApiKey = !string.IsNullOrWhiteSpace(viewModel.ApiKey) && !viewModel.ApiKey.Contains('•');
         if (newApiKey)
@@ -95,17 +85,12 @@ public class PixServerSettingsController(
             cfg.EncryptedApiKey = protector.Protect(candidate);
         }
 
-        string? oneShotSecretToDisplay = null;
-        var serverHasApiKey = !string.IsNullOrEmpty(cfg.EncryptedApiKey);
-
-        if (serverHasApiKey)
+        if (!string.IsNullOrEmpty(cfg.EncryptedApiKey))
         {
-            var needsInitialSecret = string.IsNullOrEmpty(cfg.WebhookSecretHashHex);
-            if (needsInitialSecret || viewModel.RegenerateWebhookSecret)
+            var newWebhookSecret = !string.IsNullOrWhiteSpace(viewModel.WebhookSecret) && !viewModel.WebhookSecret.Contains('•');
+            if (newWebhookSecret)
             {
-                var newSecret = Utils.GenerateHexSecret32();
-                cfg.WebhookSecretHashHex = Utils.ComputeSecretHash(newSecret);
-                oneShotSecretToDisplay = newSecret;
+                cfg.EncryptedWebhookSecret = protector.Protect(viewModel.WebhookSecret!.Trim());
             }
         }
         else
@@ -115,9 +100,6 @@ public class PixServerSettingsController(
         }
 
         await settingsRepository.UpdateSetting(cfg);
-
-        if (!string.IsNullOrEmpty(oneShotSecretToDisplay))
-            TempData[OneShotSecretKey] = oneShotSecretToDisplay;
 
         TempData[WellKnownTempData.SuccessMessage] = "DePix server configuration applied";
         return RedirectToAction(nameof(PixServerSettings));

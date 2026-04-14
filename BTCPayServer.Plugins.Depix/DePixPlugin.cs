@@ -29,6 +29,7 @@ public class DePixPlugin : BaseBTCPayServerPlugin
         plugins.AddSingleton<DepixService>();
         plugins.AddSingleton<ISecretProtector, SecretProtector>();
         plugins.AddHttpClient();
+        plugins.AddHttpContextAccessor();
 
         plugins.AddSingleton(provider =>
             (IPaymentMethodHandler)ActivatorUtilities.CreateInstance(provider, typeof(PixPaymentMethodHandler)));

@@ -6,12 +6,10 @@ namespace BTCPayServer.Plugins.Depix.Data.Enums;
 public enum DepixStatus
 {
     Pending,
-    UnderReview,
-    DepixSent,
-    Error,
-    Refunded,
+    Processing,
+    Completed,
     Expired,
-    Canceled
+    Cancelled
 }
 
 public static class DepixStatusExtensions
@@ -24,13 +22,11 @@ public static class DepixStatusExtensions
         var s = value.Trim().ToLowerInvariant().Replace("-", "_");
         switch (s)
         {
-            case "pending":       result = DepixStatus.Pending;     return true;
-            case "under_review":  result = DepixStatus.UnderReview; return true;
-            case "depix_sent":    result = DepixStatus.DepixSent;   return true;
-            case "error":         result = DepixStatus.Error;       return true;
-            case "refunded":      result = DepixStatus.Refunded;    return true;
-            case "expired":       result = DepixStatus.Expired;     return true;
-            case "canceled":      result = DepixStatus.Canceled;    return true;
+            case "pending":      result = DepixStatus.Pending;    return true;
+            case "processing":   result = DepixStatus.Processing; return true;
+            case "completed":    result = DepixStatus.Completed;  return true;
+            case "expired":      result = DepixStatus.Expired;    return true;
+            case "cancelled":    result = DepixStatus.Cancelled;  return true;
             default: return false;
         }
     }
@@ -40,14 +36,14 @@ public static class DepixStatusExtensions
         return s switch
         {
             DepixStatus.Pending => null,
-            DepixStatus.UnderReview => current.Status == InvoiceStatus.Settled
+            DepixStatus.Processing => current.Status == InvoiceStatus.Settled
                 ? null
                 : new InvoiceState(InvoiceStatus.Processing, InvoiceExceptionStatus.None),
-            DepixStatus.DepixSent => new InvoiceState(InvoiceStatus.Settled, InvoiceExceptionStatus.None),
+            DepixStatus.Completed => new InvoiceState(InvoiceStatus.Settled, InvoiceExceptionStatus.None),
             DepixStatus.Expired => current.Status == InvoiceStatus.Settled
                 ? null
                 : new InvoiceState(InvoiceStatus.Expired, InvoiceExceptionStatus.None),
-            DepixStatus.Canceled or DepixStatus.Error or DepixStatus.Refunded => current.Status == InvoiceStatus.Settled
+            DepixStatus.Cancelled => current.Status == InvoiceStatus.Settled
                 ? null
                 : new InvoiceState(InvoiceStatus.Invalid, InvoiceExceptionStatus.Marked),
             _ => null

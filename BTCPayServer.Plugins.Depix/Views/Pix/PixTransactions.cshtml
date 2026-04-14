@@ -19,11 +19,11 @@
 
   string Badge(string s) => (s ?? "").ToLowerInvariant() switch
   {
-      "depix_sent" => "bg-success",
-      "under_review" => "bg-warning text-dark",
+      "completed" => "bg-success",
+      "processing" => "bg-warning text-dark",
       "pending" => "bg-secondary",
       "expired" => "bg-dark",
-      "canceled" or "error" or "refunded" => "bg-danger",
+      "cancelled" => "bg-danger",
       _ => "bg-secondary"
   };
 }
@@ -105,7 +105,7 @@ else if (!Model.ConfigStatus.PixEnabled)
             <label class="form-label" text-translate="true">Status</label>
             <select name="status" class="form-select">
                 <option value="" text-translate="true">All</option>
-                @foreach (var s in new[] { "depix_sent","under_review","pending","expired","canceled","error","refunded" })
+                @foreach (var s in new[] { "completed","processing","pending","expired","cancelled" })
                 {
                     <option value="@s" selected="@(statusFilter==s)">@s</option>
                 }
@@ -113,7 +113,7 @@ else if (!Model.ConfigStatus.PixEnabled)
         </div>
         <div class="col-md-4">
             <label class="form-label" text-translate="true">Search</label>
-            <input name="q" value="@query" class="form-control" placeholder="InvoiceId, QR ID, Depix Address..." />
+            <input name="q" value="@query" class="form-control" placeholder="InvoiceId, Checkout ID, Depix Address..." />
         </div>
         <div class="col-md-2">
             <label class="form-label" text-translate="true">From</label>
@@ -143,7 +143,7 @@ else if (!Model.ConfigStatus.PixEnabled)
                 </div>
             </th>
             <th style="min-width: 210px;">Invoice</th>
-            <th>QR ID</th>
+            <th>Checkout ID</th>
             <th class="text-end">Amount</th>
             <th>Status</th>
             <th>Depix Address</th>

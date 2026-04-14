@@ -7,6 +7,7 @@ using BTCPayServer.Payments;
 using BTCPayServer.Payments.Bitcoin;
 using BTCPayServer.Plugins.Altcoins;
 using BTCPayServer.Plugins.Depix.Services;
+using Microsoft.AspNetCore.Http;
 using Newtonsoft.Json.Linq;
 using JsonSerializer = Newtonsoft.Json.JsonSerializer;
 
@@ -18,7 +19,8 @@ namespace BTCPayServer.Plugins.Depix.PaymentHandlers;
 public class PixPaymentMethodHandler(
     BTCPayNetworkProvider networkProvider,
     DepixService depixService,
-    ISecretProtector secretProtector)
+    ISecretProtector secretProtector,
+    IHttpContextAccessor httpContextAccessor)
     : IPaymentMethodHandler, IHasNetwork
 {
     /// <summary>
@@ -35,19 +37,12 @@ public class PixPaymentMethodHandler(
     /// Called before fetching rates to configure the prompt
     /// </summary>
     /// <param name="context">The payment method context</param>
-    public async Task BeforeFetchingRates(PaymentMethodContext context)
+    public Task BeforeFetchingRates(PaymentMethodContext context)
     {
         context.Prompt.Currency = "BRL";
         context.Prompt.Divisibility = 2;
-
-        var cfgToken = context.Store.GetPaymentMethodConfigs().TryGetValue(PaymentMethodId, out var token) ? token : null;
-        var pixCfg = cfgToken is null ? null : ParsePaymentMethodConfig(cfgToken) as PixPaymentMethodConfig;
-        var effectiveConfig = await depixService.GetEffectiveConfigAsync(pixCfg);
-        
-        context.Prompt.PaymentMethodFee = effectiveConfig.Source != DepixService.DepixConfigSource.None &&
-                                          effectiveConfig.PassFeeToCustomer
-            ? 1.00m
-            : 0.00m;
+        context.Prompt.PaymentMethodFee = 0.00m;
+        return Task.CompletedTask;
     }
 
     /// <summary>
@@ -64,34 +59,44 @@ public class PixPaymentMethodHandler(
         var effectiveConfig = await depixService.GetEffectiveConfigAsync(pixCfg);
         if (effectiveConfig.Source == DepixService.DepixConfigSource.None)
             throw new PaymentMethodUnavailableException("DePix API key/webhook secret not configured (store or server)");
-        
+
         var apiKey = secretProtector.Unprotect(effectiveConfig.EncryptedApiKey);
         if (string.IsNullOrWhiteSpace(apiKey))
             throw new PaymentMethodUnavailableException("DePix API key not configured");
 
         var amountInBrl = context.Prompt.Calculate().Due;
-        if (effectiveConfig.PassFeeToCustomer) amountInBrl += 1.00m;
         var amountInCents = (int)Math.Round(amountInBrl * 100m, MidpointRounding.AwayFromZero);
 
         using var client = depixService.CreateDepixClient(apiKey);
 
         var address = await depixService.GenerateFreshDePixAddress(store.Id);
-        var deposit = await depixService.RequestDepositAsync(
-            client, 
-            amountInCents, 
-            address, 
-            pixCfg,
-            effectiveConfig.UseWhitelist,
+
+        var callbackUrl = BuildCallbackUrl(store.Id);
+        var description = $"BTCPay Invoice {context.InvoiceEntity.Id}";
+
+        var checkout = await depixService.RequestCheckoutAsync(
+            client,
+            amountInCents,
+            description,
+            callbackUrl,
             CancellationToken.None);
 
-        depixService.ApplyPromptDetails(context, deposit, address);
+        depixService.ApplyPromptDetails(context, checkout, address);
     }
-    
+
+    private string BuildCallbackUrl(string storeId)
+    {
+        var httpContext = httpContextAccessor.HttpContext;
+        if (httpContext is not null)
+            return Utils.BuildWebhookUrl(httpContext.Request, storeId);
+        return $"/depix/webhooks/deposit/{storeId}";
+    }
+
     /// <summary>
     /// JSON serializer for the handler
     /// </summary>
     public JsonSerializer Serializer { get; } = BlobSerializer.CreateSerializer().Serializer;
-    
+
     /// <summary>
     /// Parses payment prompt details from JSON
     /// </summary>
@@ -126,114 +131,27 @@ public class PixPaymentMethodHandler(
 }
 
 /// <summary>
-/// Data model for DePix payment data
+/// Data model for DePix payment data (stored on completed payments)
 /// </summary>
 public class DePixPaymentData
 {
-    /// <summary>
-    /// The QR code ID
-    /// </summary>
-    public string? QrId { get; set; }
-    /// <summary>
-    /// The bank transaction ID
-    /// </summary>
-    public string? BankTxId { get; set; }
-    /// <summary>
-    /// The blockchain transaction ID
-    /// </summary>
+    public string? CheckoutId { get; set; }
     public string? BlockchainTxId { get; set; }
-    /// <summary>
-    /// The status of the payment
-    /// </summary>
     public string? Status { get; set; }
-    /// <summary>
-    /// The value in cents
-    /// </summary>
-    public int? ValueInCents { get; set; }
-    /// <summary>
-    /// The Pix key used
-    /// </summary>
-    public string? PixKey { get; set; }
-    /// <summary>
-    /// The payer's name
-    /// </summary>
-    public string? PayerName { get; set; }
-    /// <summary>
-    /// The payer's EUID
-    /// </summary>
-    public string? PayerEuid { get; set; }
-    /// <summary>
-    /// The payer's tax number
-    /// </summary>
-    public string? PayerTaxNumber { get; set; }
-    /// <summary>
-    /// Message from the customer
-    /// </summary>
-    public string? CustomerMessage { get; set; }
+    public decimal? Amount { get; set; }
 }
 
 /// <summary>
-/// Details for DePix payment method
+/// Details for DePix payment method (stored on payment prompt)
 /// </summary>
 public class DePixPaymentMethodDetails
 {
-    /// <summary>
-    /// The QR code ID
-    /// </summary>
-    public string? QrId { get; set; }
-    /// <summary>
-    /// The QR code image URL
-    /// </summary>
-    public string? QrImageUrl { get; set; }
-    /// <summary>
-    /// The copy-paste code for the QR
-    /// </summary>
-    public string? CopyPaste { get; set; }
-    /// <summary>
-    /// The DePix address
-    /// </summary>
+    public string? CheckoutId { get; set; }
+    public string? PaymentUrl { get; set; }
+    public string? PixPayload { get; set; }
+    public string? ExpiresAt { get; set; }
     public string? DepixAddress { get; set; }
-    /// <summary>
-    /// The status of the payment
-    /// </summary>
     public string? Status { get; set; }
-    /// <summary>
-    /// The value in cents
-    /// </summary>
-    public int? ValueInCents { get; set; }
-    /// <summary>
-    /// Expiration time
-    /// </summary>
-    public string? Expiration { get; set; }
-    /// <summary>
-    /// The Pix key
-    /// </summary>
-    public string? PixKey { get; set; }
-    /// <summary>
-    /// Payer details
-    /// </summary>
-    public PayerDetails? Payer { get; set; }
-
-    /// <summary>
-    /// Payer details class
-    /// </summary>
-    public class PayerDetails
-    {
-        /// <summary>
-        /// Payer name
-        /// </summary>
-        public string? Name { get; set; }
-        /// <summary>
-        /// Payer EUID
-        /// </summary>
-        public string? Euid { get; set; }
-        /// <summary>
-        /// Payer tax number
-        /// </summary>
-        public string? TaxNumber { get; set; }
-        /// <summary>
-        /// Payer message
-        /// </summary>
-        public string? Message { get; set; }
-    }
+    public decimal? Amount { get; set; }
+    public string? BlockchainTxId { get; set; }
 }

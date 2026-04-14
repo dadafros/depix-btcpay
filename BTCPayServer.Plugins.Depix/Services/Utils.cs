@@ -1,6 +1,5 @@
 #nullable enable
 using System;
-using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.AspNetCore.Http;
@@ -9,13 +8,6 @@ namespace BTCPayServer.Plugins.Depix.Services;
 
 public static class Utils
 {
-    public static string GenerateHexSecret32()
-    {
-        var bytes = new byte[32];
-        RandomNumberGenerator.Fill(bytes);
-        return Convert.ToHexString(bytes).ToLowerInvariant();
-    }
-
     public static string BuildWebhookUrl(HttpRequest req, string? storeId = null)
     {
         var baseUrl = $"{req.Scheme}://{req.Host}";
@@ -24,33 +16,46 @@ public static class Utils
             : $"{baseUrl}/depix/webhooks/deposit/{storeId}";
     }
 
-    public static string ToBasic(string user, string pass)
-    {
-        var raw = $"{user}:{pass}";
-        return Convert.ToBase64String(Encoding.UTF8.GetBytes(raw));
-    }
-    
     public static string ComputeSecretHash(string secretPlain)
     {
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(secretPlain ?? ""));
         return Convert.ToHexString(bytes).ToLowerInvariant();
     }
-    
-    public static string? ExtractSecretFromBasic(string parameter)
+
+    /// <summary>
+    /// Validates the X-DePix-Signature header against the raw request body.
+    /// Signature format: t={timestamp},v1={hmac}
+    /// The signed payload is "{timestamp}.{body}".
+    /// </summary>
+    public static bool ValidateHmacSignature(string body, string? signatureHeader, string webhookSecret)
     {
-        if (parameter.Length >= 32 && parameter.All(c => !char.IsWhiteSpace(c)))
-            return parameter;
+        if (string.IsNullOrEmpty(signatureHeader) || string.IsNullOrEmpty(webhookSecret))
+            return false;
 
-        try
+        string? timestamp = null;
+        string? signature = null;
+
+        foreach (var part in signatureHeader.Split(','))
         {
-            var bytes = Convert.FromBase64String(parameter);
-            var decoded = Encoding.UTF8.GetString(bytes);
-            var parts = decoded.Split(':', 2);
-            if (parts.Length == 2) return parts[1];
+            var trimmed = part.Trim();
+            if (trimmed.StartsWith("t=", StringComparison.Ordinal))
+                timestamp = trimmed[2..];
+            else if (trimmed.StartsWith("v1=", StringComparison.Ordinal))
+                signature = trimmed[3..];
         }
-        catch { /* ignore */ }
 
-        return null;
+        if (string.IsNullOrEmpty(timestamp) || string.IsNullOrEmpty(signature))
+            return false;
+
+        var signedPayload = $"{timestamp}.{body}";
+        var secretBytes = Encoding.UTF8.GetBytes(webhookSecret);
+        var payloadBytes = Encoding.UTF8.GetBytes(signedPayload);
+        var expectedBytes = HMACSHA256.HashData(secretBytes, payloadBytes);
+        var expectedHex = Convert.ToHexString(expectedBytes).ToLowerInvariant();
+
+        return CryptographicOperations.FixedTimeEquals(
+            Encoding.UTF8.GetBytes(expectedHex),
+            Encoding.UTF8.GetBytes(signature));
     }
 
     public static bool FixedEqualsHex(string hexA, string hexB)

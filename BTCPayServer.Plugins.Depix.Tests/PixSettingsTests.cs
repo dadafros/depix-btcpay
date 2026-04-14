@@ -37,15 +37,11 @@ public class PixSettingsTests : PlaywrightBaseTest
         await GoToPixSettingsAsync();
 
         await Page.Locator("#IsEnabled").SetCheckedAsync(true);
-        await Page.Locator("#PassFeeToCustomer").SetCheckedAsync(true);
-        await Page.Locator("#UseWhitelist").SetCheckedAsync(true);
         await Page.GetByRole(AriaRole.Button, new() { Name = "Save" }).ClickAsync();
 
         await Tester.FindAlertMessage(partialText: "Pix configuration applied");
 
         Assert.True(await Page.Locator("#IsEnabled").IsCheckedAsync());
-        Assert.True(await Page.Locator("#PassFeeToCustomer").IsCheckedAsync());
-        Assert.True(await Page.Locator("#UseWhitelist").IsCheckedAsync());
     }
 
     [Fact(Timeout = TestUtils.TestTimeout)]
@@ -56,9 +52,7 @@ public class PixSettingsTests : PlaywrightBaseTest
         await SeedValidServerPixConfigAsync();
         await GoToPixSettingsAsync();
 
-        await Page.GetByText("server-level DePix Api Key configuration", new() { Exact = false }).WaitForAsync();
-        Assert.Equal(0, await Page.Locator("#PassFeeToCustomer").CountAsync());
-        Assert.Equal(0, await Page.Locator("#UseWhitelist").CountAsync());
+        await Page.GetByText("server-level DePix configuration", new() { Exact = false }).WaitForAsync();
 
         await Page.Locator("#IsEnabled").SetCheckedAsync(true);
         await Page.GetByRole(AriaRole.Button, new() { Name = "Save" }).ClickAsync();
@@ -70,6 +64,6 @@ public class PixSettingsTests : PlaywrightBaseTest
         Assert.NotNull(storeConfig);
         Assert.True(storeConfig!.IsEnabled);
         Assert.Null(storeConfig.EncryptedApiKey);
-        Assert.Null(storeConfig.WebhookSecretHashHex);
+        Assert.Null(storeConfig.EncryptedWebhookSecret);
     }
 }

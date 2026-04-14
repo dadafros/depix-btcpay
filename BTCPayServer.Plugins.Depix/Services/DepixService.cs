@@ -48,10 +48,10 @@ public class DepixService(
     ApplicationDbContextFactory dbFactory,
     EventAggregator events,
     DisplayFormatter displayFormatter,
-    ISettingsRepository settingsRepository 
+    ISettingsRepository settingsRepository
 )
 {
-    
+
     /// <summary>
     /// Source of the DePix configuration
     /// </summary>
@@ -77,10 +77,8 @@ public class DepixService(
     public record EffectivePixConfig(
         DepixConfigSource Source,
         string? EncryptedApiKey,
-        string? WebhookSecretHashHex,
-        bool UseWhitelist,
-        bool PassFeeToCustomer);
-    
+        string? EncryptedWebhookSecret);
+
     /// <summary>
     /// Checks if DePix is enabled for a store
     /// </summary>
@@ -103,7 +101,7 @@ public class DepixService(
 
             var isConfigured = paymentMethods.ContainsKey(DePixPlugin.DePixPmid);
             var isExcluded = excludeFilters.Match(DePixPlugin.DePixPmid);
-            
+
             return isConfigured && !isExcluded;
         }
         catch (Exception ex)
@@ -112,7 +110,7 @@ public class DepixService(
             return false;
         }
     }
-    
+
     /// <summary>
     /// Gets the Pix configuration status for a store
     /// </summary>
@@ -137,7 +135,7 @@ public class DepixService(
 
         return new PixConfigStatus(dePixActive, pixEnabled, apiKeyConfigured);
     }
-    
+
     /// <summary>
     /// Checks if Pix is enabled for a store
     /// </summary>
@@ -156,7 +154,7 @@ public class DepixService(
         var cfg = store.GetPaymentMethodConfig<PixPaymentMethodConfig>(DePixPlugin.PixPmid, handlers);
         return cfg is not null && cfg.IsEnabled;
     }
-    
+
     /// <summary>
     /// Generates a fresh DePix address for a store
     /// </summary>
@@ -171,18 +169,18 @@ public class DepixService(
 
         var store = await storeRepository.FindStore(storeId);
         if (store == null)
-            throw new PixPluginException("Store not found"); 
-        
+            throw new PixPluginException("Store not found");
+
 
         var depixNetwork = networkProvider.GetNetwork<ElementsBTCPayNetwork>(DePixPlugin.DePixCryptoCode);
         if (depixNetwork == null)
             throw new PixPluginException("DePix asset network not configured");
-        
+
 
         var wallet = walletProvider.GetWallet(depixNetwork);
         if (wallet == null)
             throw new PixPaymentException("Depix wallet not configured");
-        
+
 
         const string generatedBy = "invoice";
         var handlers = serviceProvider.GetRequiredService<PaymentMethodHandlerDictionary>();
@@ -190,13 +188,13 @@ public class DepixService(
         var derivationSettings = store.GetDerivationSchemeSettings(handlers, DePixPlugin.DePixCryptoCode, onlyEnabled: true);
         if (derivationSettings == null)
             throw new PixPluginException("DePix derivation scheme not configured for this store.");
-        
+
         var addressData = await wallet.ReserveAddressAsync(storeId, derivationSettings.AccountDerivation, generatedBy);
         var address = addressData.Address.ToString();
-        
+
         return address;
     }
-    
+
     /// <summary>
     /// Creates a DePix API client
     /// </summary>
@@ -206,13 +204,13 @@ public class DepixService(
     {
         var httpClientFactory = serviceProvider.GetRequiredService<IHttpClientFactory>();
         var client = httpClientFactory.CreateClient();
-        client.BaseAddress = new Uri("https://depix.eulen.app/api/");
+        client.BaseAddress = new Uri("https://depix-backend.vercel.app/api/");
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
         return client;
     }
-    
+
     /// <summary>
-    /// Validates a DePix API key
+    /// Validates a DePix API key via GET /api/me
     /// </summary>
     /// <param name="apiKey">The API key to validate</param>
     /// <param name="ct">Cancellation token</param>
@@ -222,14 +220,12 @@ public class DepixService(
         try
         {
             var client = CreateDepixClient(apiKey);
-            using var req  = new HttpRequestMessage(HttpMethod.Get, "ping");
+            using var req  = new HttpRequestMessage(HttpMethod.Get, "me");
             using var resp = await client.SendAsync(req, ct);
 
             if (resp.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
                 return new ApiKeyValidationResponse(false, "Invalid API key (401/403).");
 
-            // At the moment, despite docs, Depix API only return 200 or 500 so we can't know if it's a server error or apiKey error.
-            // So, if doesn't return 200 we handle as ApiKey error for now. 
             if (!resp.IsSuccessStatusCode)
             {
                 var code = (int)resp.StatusCode;
@@ -240,14 +236,12 @@ public class DepixService(
             await using var s = await resp.Content.ReadAsStreamAsync(ct);
             using var doc = await JsonDocument.ParseAsync(s, cancellationToken: ct);
 
-            if (doc.RootElement.TryGetProperty("response", out var response) &&
-                response.TryGetProperty("msg", out var msgProp) &&
-                string.Equals(msgProp.GetString(), "Pong!", StringComparison.OrdinalIgnoreCase))
+            if (doc.RootElement.TryGetProperty("merchant_id", out _))
             {
                 return new ApiKeyValidationResponse(true, "OK");
             }
 
-            return new ApiKeyValidationResponse(false, "API responded but did not confirm token (no Pong!).");
+            return new ApiKeyValidationResponse(false, "API responded but did not return merchant info.");
         }
         catch (TaskCanceledException)
         {
@@ -262,84 +256,72 @@ public class DepixService(
             return new ApiKeyValidationResponse(false, "API key validation failed due to an unexpected error.");
         }
     }
-    
+
     /// <summary>
-    /// Requests a new Pix deposit from the DePix API
+    /// Creates a new checkout via POST /api/checkouts
     /// </summary>
     /// <param name="client">Authenticated HttpClient</param>
     /// <param name="amountInCents">Amount in cents</param>
-    /// <param name="depixAddress">The DePix address to receive funds</param>
-    /// <param name="pixCfg">Pix configuration containing optional split parameters</param>
-    /// <param name="useWhitelist">Whether whitelist is enabled from effective config</param>
+    /// <param name="description">Payment description</param>
+    /// <param name="callbackUrl">Webhook callback URL for this checkout</param>
     /// <param name="ct">Cancellation token</param>
-    /// <returns>The deposit response containing QR code info</returns>
+    /// <returns>The checkout response</returns>
     /// <exception cref="PaymentMethodUnavailableException">Thrown if request fails</exception>
-    public async Task<DepixDepositResponse> RequestDepositAsync(HttpClient client, int amountInCents, string depixAddress, PixPaymentMethodConfig pixCfg, bool useWhitelist, CancellationToken ct)
+    public async Task<DepixCheckoutResponse> RequestCheckoutAsync(HttpClient client, int amountInCents, string description, string callbackUrl, CancellationToken ct)
     {
         var payload = new Dictionary<string, object>
         {
-            ["amountInCents"] = amountInCents,
-            ["depixAddress"]  = depixAddress
+            ["amount"] = amountInCents,
+            ["description"] = description,
+            ["callback_url"] = callbackUrl
         };
-        
-        if (useWhitelist)
-            payload["whitelist"] = true;
-
-        var splitAddressTrimmed = pixCfg.DepixSplitAddress?.Trim();
-        if (!string.IsNullOrWhiteSpace(splitAddressTrimmed))
-            payload["depixSplitAddress"] = splitAddressTrimmed;
-
-        var splitFeeTrimmed = pixCfg.SplitFee?.Trim();
-        if (!string.IsNullOrWhiteSpace(splitFeeTrimmed))
-            payload["splitFee"] = splitFeeTrimmed;
 
         var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-        var resp = await client.PostAsync("deposit", content, ct);
+        var resp = await client.PostAsync("checkouts", content, ct);
         if (!resp.IsSuccessStatusCode)
-            throw new PaymentMethodUnavailableException("Failed to generate Pix QR Code");
-        
+            throw new PaymentMethodUnavailableException("Failed to create DePix checkout");
 
         var body = await resp.Content.ReadAsStringAsync(ct);
         using var doc = JsonDocument.Parse(body);
-        var root = doc.RootElement.GetProperty("response");
+        var root = doc.RootElement;
 
-        var qrId       = root.GetProperty("id").GetString();
-        var qrImageUrl = root.GetProperty("qrImageUrl").GetString();
-        var copyPaste  = root.GetProperty("qrCopyPaste").GetString();
+        var id         = root.GetProperty("id").GetString();
+        var paymentUrl = root.GetProperty("payment_url").GetString();
+        var pixPayload = root.GetProperty("pix_payload").GetString();
+        var expiresAt  = root.GetProperty("expires_at").GetString();
 
-        if (string.IsNullOrEmpty(qrId))
+        if (string.IsNullOrEmpty(id))
             throw new PaymentMethodUnavailableException("DePix response did not include id");
-        if (string.IsNullOrEmpty(qrImageUrl))
-            throw new PaymentMethodUnavailableException("DePix response did not include qrImageUrl");
-        if (string.IsNullOrEmpty(copyPaste))
-            throw new PaymentMethodUnavailableException("DePix response did not include qrCopyPaste");
+        if (string.IsNullOrEmpty(pixPayload))
+            throw new PaymentMethodUnavailableException("DePix response did not include pix_payload");
 
-        return new DepixDepositResponse(qrId, qrImageUrl!, copyPaste!);
+        return new DepixCheckoutResponse(id!, paymentUrl ?? "", pixPayload!, expiresAt ?? "");
     }
-    
+
     /// <summary>
-    /// Applies the deposit details to the payment prompt
+    /// Applies the checkout details to the payment prompt
     /// </summary>
     /// <param name="context">The payment method context</param>
-    /// <param name="depositResponse">The deposit response from DePix</param>
+    /// <param name="checkoutResponse">The checkout response from DePix</param>
     /// <param name="depixAddress">The DePix address</param>
-    public void ApplyPromptDetails(PaymentMethodContext context, DepixDepositResponse depositResponse, string depixAddress)
+    public void ApplyPromptDetails(PaymentMethodContext context, DepixCheckoutResponse checkoutResponse, string depixAddress)
     {
-        context.Prompt.Destination = depositResponse.QrImageUrl;
+        context.Prompt.Destination = checkoutResponse.PixPayload;
 
         var details = context.Prompt.Details is null
             ? new DePixPaymentMethodDetails()
             : context.Handler.ParsePaymentPromptDetails(context.Prompt.Details) as DePixPaymentMethodDetails ??
               new DePixPaymentMethodDetails();
 
-        details.QrId = depositResponse.QrId;
-        details.QrImageUrl = depositResponse.QrImageUrl;
-        details.CopyPaste = depositResponse.QrCopyPaste;
+        details.CheckoutId = checkoutResponse.Id;
+        details.PaymentUrl = checkoutResponse.PaymentUrl;
+        details.PixPayload = checkoutResponse.PixPayload;
+        details.ExpiresAt = checkoutResponse.ExpiresAt;
         details.DepixAddress = depixAddress;
 
         context.Prompt.Details = JToken.FromObject(details, context.Handler.Serializer);
     }
-    
+
     /// <summary>
     /// Loads Pix transactions for a store
     /// </summary>
@@ -356,7 +338,7 @@ public class DepixService(
         var where = new List<string>
         {
             "\"StoreDataId\" = @storeId",
-            "(\"Blob2\"->'prompts'->'PIX'->'details'->>'qrId') IS NOT NULL"
+            "(\"Blob2\"->'prompts'->'PIX'->'details'->>'checkoutId') IS NOT NULL"
         };
         if (!string.IsNullOrWhiteSpace(query.Status))
             where.Add("\"Blob2\"->'prompts'->'PIX'->'details'->>'status' = @status");
@@ -369,7 +351,7 @@ public class DepixService(
             where.Add("""
                       (
                           "Id" ILIKE '%' || @search || '%'
-                          OR ("Blob2"->'prompts'->'PIX'->'details'->>'qrId') ILIKE '%' || @search || '%'
+                          OR ("Blob2"->'prompts'->'PIX'->'details'->>'checkoutId') ILIKE '%' || @search || '%'
                           OR ("Blob2"->'prompts'->'PIX'->'details'->>'depixAddress') ILIKE '%' || @search || '%'
                       )
                       """);
@@ -379,9 +361,9 @@ public class DepixService(
                    SELECT
                      "Id" AS "InvoiceId",
                      "Created"::timestamptz AS "Created",
-                     ("Blob2"->'prompts'->'PIX'->'details'->>'qrId')          AS "QrId",
-                     ("Blob2"->'prompts'->'PIX'->'details'->>'depixAddress')  AS "DepixAddress",
-                     NULLIF(("Blob2"->'prompts'->'PIX'->'details'->>'valueInCents'), '')::int AS "ValueInCents",
+                     ("Blob2"->'prompts'->'PIX'->'details'->>'checkoutId')     AS "QrId",
+                     ("Blob2"->'prompts'->'PIX'->'details'->>'depixAddress')   AS "DepixAddress",
+                     NULLIF(("Blob2"->'prompts'->'PIX'->'details'->>'amount'), '')::int AS "ValueInCents",
                      COALESCE(("Blob2"->'prompts'->'PIX'->'details'->>'status'), 'pending')   AS "DepixStatusRaw"
                    FROM "Invoices"
                    WHERE {string.Join(" AND ", where)}
@@ -410,62 +392,64 @@ public class DepixService(
 
         return transactions;
     }
-    
+
     /// <summary>
     /// Processes a webhook for a specific store
     /// </summary>
     /// <param name="storeId">The store ID</param>
-    /// <param name="body">The webhook body</param>
+    /// <param name="payload">The webhook payload</param>
     /// <param name="cancellationToken">Cancellation token</param>
-    public async Task ProcessWebhookAsync(string storeId, DepositWebhookBody body, CancellationToken cancellationToken)
+    public async Task ProcessWebhookAsync(string storeId, DepixWebhookPayload payload, CancellationToken cancellationToken)
     {
         try
         {
-            var invoiceId = await FindInvoiceIdByQrIdAsync(body.QrId, storeId, cancellationToken);
+            var checkoutId = payload.Data.Id;
+            var invoiceId = await FindInvoiceByCheckoutIdAsync(checkoutId, storeId, cancellationToken);
             if (invoiceId is null)
             {
-                logger.LogWarning("Depix webhook: invoice not found for store {StoreId} and qrId {QrId}", storeId, body.QrId);
+                logger.LogWarning("DePix webhook: invoice not found for store {StoreId} and checkoutId {CheckoutId}", storeId, checkoutId);
                 return;
             }
 
-            await ProcessWebhookForInvoiceAsync(invoiceId, body, cancellationToken);
+            await ProcessWebhookForInvoiceAsync(invoiceId, payload, cancellationToken);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Depix webhook processing failed for store {StoreId}", storeId);
+            logger.LogError(ex, "DePix webhook processing failed for store {StoreId}", storeId);
         }
     }
-    
+
     /// <summary>
     /// Processes a webhook (server-level or global)
     /// </summary>
-    /// <param name="body">The webhook body</param>
+    /// <param name="payload">The webhook payload</param>
     /// <param name="cancellationToken">Cancellation token</param>
-    public async Task ProcessWebhookAsync(DepositWebhookBody body, CancellationToken cancellationToken)
+    public async Task ProcessWebhookAsync(DepixWebhookPayload payload, CancellationToken cancellationToken)
     {
         try
         {
-            var invoiceId = await FindInvoiceIdByQrIdAsync(body.QrId, storeId: null, cancellationToken);
+            var checkoutId = payload.Data.Id;
+            var invoiceId = await FindInvoiceByCheckoutIdAsync(checkoutId, storeId: null, cancellationToken);
             if (invoiceId is null)
             {
-                logger.LogWarning("Depix webhook (server): invoice not found for qrId {QrId}", body.QrId);
+                logger.LogWarning("DePix webhook (server): invoice not found for checkoutId {CheckoutId}", checkoutId);
                 return;
             }
 
-            await ProcessWebhookForInvoiceAsync(invoiceId, body, cancellationToken);
+            await ProcessWebhookForInvoiceAsync(invoiceId, payload, cancellationToken);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Depix webhook (server) processing failed");
+            logger.LogError(ex, "DePix webhook (server) processing failed");
         }
     }
-    
-    private async Task ProcessWebhookForInvoiceAsync(string invoiceId, DepositWebhookBody body, CancellationToken cancellationToken)
+
+    private async Task ProcessWebhookForInvoiceAsync(string invoiceId, DepixWebhookPayload payload, CancellationToken cancellationToken)
     {
         var entity = await invoiceRepository.GetInvoice(invoiceId);
         if (entity is null)
         {
-            logger.LogWarning("Depix webhook: invoice entity null for {InvoiceId}", invoiceId);
+            logger.LogWarning("DePix webhook: invoice entity null for {InvoiceId}", invoiceId);
             return;
         }
 
@@ -473,7 +457,7 @@ public class DepixService(
         var pixPrompt = entity.GetPaymentPrompt(pmid);
         if (pixPrompt is null)
         {
-            logger.LogWarning("Depix webhook: PIX prompt not found on invoice {InvoiceId}", invoiceId);
+            logger.LogWarning("DePix webhook: PIX prompt not found on invoice {InvoiceId}", invoiceId);
             return;
         }
 
@@ -481,61 +465,50 @@ public class DepixService(
         var handlers = scope.ServiceProvider.GetRequiredService<PaymentMethodHandlerDictionary>();
         if (!handlers.TryGetValue(pmid, out var handler))
         {
-            logger.LogWarning("Depix webhook: PIX handler missing for invoice {InvoiceId}", invoiceId);
+            logger.LogWarning("DePix webhook: PIX handler missing for invoice {InvoiceId}", invoiceId);
             return;
         }
 
+        var data = payload.Data;
         var details = pixPrompt.Details is null
             ? new DePixPaymentMethodDetails()
             : handler.ParsePaymentPromptDetails(pixPrompt.Details) as DePixPaymentMethodDetails ??
               new DePixPaymentMethodDetails();
-        if (body.Status is not null)       details.Status = body.Status;
-        if (body.ValueInCents is not null) details.ValueInCents = body.ValueInCents;
-        if (body.Expiration is not null)   details.Expiration = body.Expiration;
-        if (body.PixKey is not null)       details.PixKey = body.PixKey;
 
-        if (body.PayerName is not null || body.PayerEuid is not null ||
-            body.PayerTaxNumber is not null || body.CustomerMessage is not null)
-        {
-            details.Payer ??= new DePixPaymentMethodDetails.PayerDetails();
-            if (body.PayerName is not null)       details.Payer.Name = body.PayerName;
-            if (body.PayerEuid is not null)       details.Payer.Euid = body.PayerEuid;
-            if (body.PayerTaxNumber is not null)  details.Payer.TaxNumber = body.PayerTaxNumber;
-            if (body.CustomerMessage is not null) details.Payer.Message = body.CustomerMessage;
-        }
+        if (data.Status is not null) details.Status = data.Status;
+        if (data.Amount is not null) details.Amount = data.Amount;
+        if (data.BlockchainTxId is not null) details.BlockchainTxId = data.BlockchainTxId;
 
         await invoiceRepository.UpdatePaymentDetails(invoiceId, handler, details);
 
-        if (DepixStatusExtensions.TryParse(body.Status, out var depixStatus))
+        if (DepixStatusExtensions.TryParse(data.Status, out var depixStatus))
         {
-            if (depixStatus != DepixStatus.DepixSent)
+            if (depixStatus != DepixStatus.Completed)
             {
                 await ApplyStatusAndNotifyAsync(invoiceId, depixStatus);
                 return;
             }
-            
-            await TryRecordPaymentAsync(entity, pixPrompt, body, depixStatus);
+
+            await TryRecordPaymentAsync(entity, pixPrompt, data, depixStatus);
         }
     }
 
-    private async Task TryRecordPaymentAsync(InvoiceEntity entity, PaymentPrompt pixPrompt, DepositWebhookBody body,
+    private async Task TryRecordPaymentAsync(InvoiceEntity entity, PaymentPrompt pixPrompt, DepixWebhookData data,
         DepixStatus depixStatus)
     {
-        if (depixStatus != DepixStatus.DepixSent)
+        if (depixStatus != DepixStatus.Completed)
             return;
 
-        if (string.IsNullOrWhiteSpace(body.QrId))
+        if (string.IsNullOrWhiteSpace(data.Id))
         {
-            logger.LogWarning("Depix webhook: depix_sent without payment id for invoice {InvoiceId}", entity.Id);
+            logger.LogWarning("DePix webhook: completed without checkout id for invoice {InvoiceId}", entity.Id);
             return;
         }
 
-        var amount = body.ValueInCents is { } cents
-            ? cents / 100m
-            : pixPrompt.Calculate().TotalDue;
+        var amount = data.Amount ?? pixPrompt.Calculate().TotalDue;
         if (amount <= 0m)
         {
-            logger.LogWarning("Depix webhook: depix_sent with invalid amount {Amount} for invoice {InvoiceId}", amount, entity.Id);
+            logger.LogWarning("DePix webhook: completed with invalid amount {Amount} for invoice {InvoiceId}", amount, entity.Id);
             return;
         }
 
@@ -544,11 +517,11 @@ public class DepixService(
         var handlers = scope.ServiceProvider.GetRequiredService<PaymentMethodHandlerDictionary>();
         if (!handlers.TryGetValue(DePixPlugin.PixPmid, out var handler))
         {
-            logger.LogWarning("Depix webhook: depix_sent but PIX handler missing for invoice {InvoiceId}", entity.Id);
+            logger.LogWarning("DePix webhook: completed but PIX handler missing for invoice {InvoiceId}", entity.Id);
             return;
         }
 
-        var paymentId = $"{entity.Id}:{body.QrId}";
+        var paymentId = $"{entity.Id}:{data.Id}";
         var paymentData = new PaymentData
         {
             Id = paymentId,
@@ -557,7 +530,7 @@ public class DepixService(
             Currency = pixPrompt.Currency,
             InvoiceDataId = entity.Id,
             Amount = amount
-        }.Set(entity, handler, BuildPaymentData(body));
+        }.Set(entity, handler, BuildPaymentData(data));
 
         var payment = await paymentService.AddPayment(paymentData, new HashSet<string>(StringComparer.OrdinalIgnoreCase) { paymentId });
         if (payment is null)
@@ -571,20 +544,14 @@ public class DepixService(
             events.Publish(new InvoiceEvent(invoice, InvoiceEvent.ReceivedPayment) { Payment = payment });
     }
 
-    private static DePixPaymentData BuildPaymentData(DepositWebhookBody body)
+    private static DePixPaymentData BuildPaymentData(DepixWebhookData data)
     {
         return new DePixPaymentData
         {
-            QrId = body.QrId,
-            BankTxId = body.BankTxId,
-            BlockchainTxId = body.BlockchainTxId,
-            Status = body.Status,
-            ValueInCents = body.ValueInCents,
-            PixKey = body.PixKey,
-            PayerName = body.PayerName,
-            PayerEuid = body.PayerEuid,
-            PayerTaxNumber = body.PayerTaxNumber,
-            CustomerMessage = body.CustomerMessage
+            CheckoutId = data.Id,
+            BlockchainTxId = data.BlockchainTxId,
+            Status = data.Status,
+            Amount = data.Amount
         };
     }
 
@@ -602,7 +569,7 @@ public class DepixService(
         events.Publish(new InvoiceNeedUpdateEvent(invoiceId));
         events.Publish(new InvoiceDataChangedEvent(entity));
     }
-    
+
     /// <summary>
     /// Gets the Pix configuration for a store
     /// </summary>
@@ -622,7 +589,7 @@ public class DepixService(
 
         return handler.ParsePaymentMethodConfig(raw) as PixPaymentMethodConfig;
     }
-    
+
     /// <summary>
     /// Gets the server-level DePix configuration
     /// </summary>
@@ -631,15 +598,15 @@ public class DepixService(
     {
         return await settingsRepository.GetSettingAsync<PixServerConfig>() ?? new PixServerConfig();
     }
-    
+
     /// <summary>
     /// Validates the configuration
     /// </summary>
     /// <param name="encryptedApiKey">The encrypted API key</param>
-    /// <param name="webhookSecretHashHex">The webhook secret hash</param>
+    /// <param name="encryptedWebhookSecret">The encrypted webhook secret</param>
     /// <returns>True if valid, false otherwise</returns>
-    public static bool IsConfigValid(string? encryptedApiKey, string? webhookSecretHashHex)
-        => !string.IsNullOrEmpty(encryptedApiKey) && !string.IsNullOrEmpty(webhookSecretHashHex);
+    public static bool IsConfigValid(string? encryptedApiKey, string? encryptedWebhookSecret)
+        => !string.IsNullOrEmpty(encryptedApiKey) && !string.IsNullOrEmpty(encryptedWebhookSecret);
 
     /// <summary>
     /// Gets the effective configuration (merging store and server configs)
@@ -648,36 +615,30 @@ public class DepixService(
     /// <returns>The effective configuration</returns>
     public async Task<EffectivePixConfig> GetEffectiveConfigAsync(PixPaymentMethodConfig? storeCfg)
     {
-        if (storeCfg is not null && IsConfigValid(storeCfg.EncryptedApiKey, storeCfg.WebhookSecretHashHex))
+        if (storeCfg is not null && IsConfigValid(storeCfg.EncryptedApiKey, storeCfg.EncryptedWebhookSecret))
         {
             return new EffectivePixConfig(
                 DepixConfigSource.Store,
                 storeCfg.EncryptedApiKey,
-                storeCfg.WebhookSecretHashHex,
-                storeCfg.UseWhitelist,
-                storeCfg.PassFeeToCustomer);
+                storeCfg.EncryptedWebhookSecret);
         }
 
         var serverCfg = await GetServerConfigAsync();
-        if (IsConfigValid(serverCfg.EncryptedApiKey, serverCfg.WebhookSecretHashHex))
+        if (IsConfigValid(serverCfg.EncryptedApiKey, serverCfg.EncryptedWebhookSecret))
         {
             return new EffectivePixConfig(
                 DepixConfigSource.Server,
                 serverCfg.EncryptedApiKey,
-                serverCfg.WebhookSecretHashHex,
-                serverCfg.UseWhitelist,
-                serverCfg.PassFeeToCustomer);
+                serverCfg.EncryptedWebhookSecret);
         }
 
         return new EffectivePixConfig(
             DepixConfigSource.None,
             null,
-            null,
-            false,
-            false);
+            null);
     }
-    
-    private async Task<string?> FindInvoiceIdByQrIdAsync(string qrId, string? storeId, CancellationToken ct)
+
+    private async Task<string?> FindInvoiceByCheckoutIdAsync(string checkoutId, string? storeId, CancellationToken ct)
     {
         await using var db = dbFactory.CreateContext();
         var conn = db.Database.GetDbConnection();
@@ -688,15 +649,15 @@ public class DepixService(
                            SELECT "Id"
                            FROM "Invoices"
                            WHERE (@storeId IS NULL OR "StoreDataId" = @storeId)
-                             AND ("Blob2"->'prompts'->'PIX'->'details'->>'qrId') = @qrId
+                             AND ("Blob2"->'prompts'->'PIX'->'details'->>'checkoutId') = @checkoutId
                            ORDER BY "Created" DESC
                            LIMIT 1;
                            """;
 
         return await conn.QueryFirstOrDefaultAsync<string?>(
-            new CommandDefinition(sql, new { qrId, storeId }, cancellationToken: ct));
+            new CommandDefinition(sql, new { checkoutId, storeId }, cancellationToken: ct));
     }
-    
+
     /// <summary>
     /// Initializes the DePix plugin
     /// </summary>
@@ -730,7 +691,7 @@ public class DepixService(
                 "BTC_BRL = binance(BTC_BRL)",
                 "BRL_BTC = 1 / BTC_BRL",
 
-                // Swap BRL ↔ USD via BTC
+                // Swap BRL <-> USD via BTC
                 "BRL_USD = BTC_USD / BTC_BRL",
                 "USD_BRL = 1 / BRL_USD",
 

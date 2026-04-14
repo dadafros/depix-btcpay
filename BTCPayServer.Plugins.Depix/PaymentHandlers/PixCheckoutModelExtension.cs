@@ -16,7 +16,7 @@ public class PixCheckoutModelExtension : ICheckoutModelExtension
         context.Model.CheckoutBodyComponentName = CheckoutBodyComponentName;
         context.Model.ExpirationSeconds = 900;
         context.Model.Activated = true;
-        context.Model.InvoiceBitcoinUrl = context.Prompt.Details["copyPaste"]?.ToString();
+        context.Model.InvoiceBitcoinUrl = context.Prompt.Details["pixPayload"]?.ToString();
         context.Model.InvoiceBitcoinUrlQR = context.Prompt.Destination;
         context.Model.ShowPayInWalletButton = false;
         context.Model.CelebratePayment = true;

@@ -1,3 +1,3 @@
 namespace BTCPayServer.Plugins.Depix.Data.Models;
 
-public sealed record DepixDepositResponse(string QrId, string QrImageUrl, string QrCopyPaste);
+public sealed record DepixCheckoutResponse(string Id, string PaymentUrl, string PixPayload, string ExpiresAt);

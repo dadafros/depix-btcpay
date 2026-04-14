@@ -3,17 +3,23 @@ using System.Text.Json.Serialization;
 
 namespace BTCPayServer.Plugins.Depix.Data.Models;
 
-public sealed class DepositWebhookBody
+public sealed class DepixWebhookPayload
 {
-    [JsonPropertyName("bankTxId")] public string? BankTxId { get; set; }
-    [JsonPropertyName("blockchainTxID")] public string? BlockchainTxId { get; set; }
-    [JsonPropertyName("customerMessage")] public string? CustomerMessage { get; set; }
-    [JsonPropertyName("payerName")] public string? PayerName { get; set; }
-    [JsonPropertyName("payerEUID")] public string? PayerEuid { get; set; }
-    [JsonPropertyName("payerTaxNumber")] public string? PayerTaxNumber { get; set; }
-    [JsonPropertyName("expiration")] public string? Expiration { get; set; } // ISO string
-    [JsonPropertyName("pixKey")] public string? PixKey { get; set; }
-    [JsonPropertyName("qrId")] public string QrId { get; set; } = null!;
-    [JsonPropertyName("status")] public string? Status { get; set; } // ex: depix_sent
-    [JsonPropertyName("valueInCents")] public int? ValueInCents { get; set; }
+    [JsonPropertyName("event")] public string? Event { get; set; }
+    [JsonPropertyName("data")] public DepixWebhookData Data { get; set; } = new();
+}
+
+public sealed class DepixWebhookData
+{
+    [JsonPropertyName("id")] public string Id { get; set; } = null!;
+    [JsonPropertyName("status")] public string? Status { get; set; }
+    [JsonPropertyName("amount")] public decimal? Amount { get; set; }
+    [JsonPropertyName("completed_at")] public string? CompletedAt { get; set; }
+    [JsonPropertyName("blockchain_tx_id")] public string? BlockchainTxId { get; set; }
+    [JsonPropertyName("metadata")] public DepixWebhookMetadata? Metadata { get; set; }
+}
+
+public sealed class DepixWebhookMetadata
+{
+    [JsonPropertyName("invoice_id")] public string? InvoiceId { get; set; }
 }

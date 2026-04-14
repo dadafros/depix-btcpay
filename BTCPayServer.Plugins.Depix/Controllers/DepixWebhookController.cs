@@ -1,10 +1,11 @@
 #nullable enable
-using System;
+using System.IO;
+using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using BTCPayServer.Plugins.Depix.Data.Models;
 using BTCPayServer.Plugins.Depix.Services;
-using BTCPayServer.Services.Invoices;
 using BTCPayServer.Services.Stores;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -16,60 +17,72 @@ namespace BTCPayServer.Plugins.Depix.Controllers;
 public class DepixWebhookController(
     StoreRepository stores,
     PaymentMethodHandlerDictionary handlers,
-    DepixService depixService)
+    DepixService depixService,
+    ISecretProtector secretProtector)
     : ControllerBase
 {
     // Store-scoped webhook: /depix/webhooks/deposit/{storeId}
     [HttpPost("deposit/{storeId}")]
     [AllowAnonymous]
-    public async Task<IActionResult> DepositStore([FromRoute] string storeId, [FromBody] DepositWebhookBody body)
+    public async Task<IActionResult> DepositStore([FromRoute] string storeId)
     {
         var store = await stores.FindStore(storeId);
         if (store is null) return NotFound();
 
         var cfg = depixService.GetPixConfig(store, handlers);
-        if (cfg is null) return NotFound();
-        
-        var storedHash = cfg.WebhookSecretHashHex;
-        if (!ValidateWebhookSecret(storedHash))
+        var effectiveConfig = await depixService.GetEffectiveConfigAsync(cfg);
+        if (effectiveConfig.Source == DepixService.DepixConfigSource.None)
+            return NotFound();
+
+        var webhookSecret = secretProtector.Unprotect(effectiveConfig.EncryptedWebhookSecret);
+        if (string.IsNullOrEmpty(webhookSecret))
             return Unauthorized();
 
-        _ = Task.Run(() => depixService.ProcessWebhookAsync(storeId, body, CancellationToken.None), CancellationToken.None);
+        var rawBody = await ReadBodyAsync();
+        var signatureHeader = Request.Headers["X-DePix-Signature"].ToString();
+
+        if (!Utils.ValidateHmacSignature(rawBody, signatureHeader, webhookSecret))
+            return Unauthorized();
+
+        var payload = JsonSerializer.Deserialize<DepixWebhookPayload>(rawBody);
+        if (payload?.Data.Id is null)
+            return BadRequest();
+
+        _ = Task.Run(() => depixService.ProcessWebhookAsync(storeId, payload, CancellationToken.None), CancellationToken.None);
         return Ok();
     }
 
     // Server-scoped webhook: /depix/webhooks/deposit
     [HttpPost("deposit")]
     [AllowAnonymous]
-    public async Task<IActionResult> DepositServer([FromBody] DepositWebhookBody body)
+    public async Task<IActionResult> DepositServer()
     {
         var server = await depixService.GetServerConfigAsync();
-        var storedHash = server.WebhookSecretHashHex;
-
-        if (!ValidateWebhookSecret(storedHash))
+        var webhookSecret = secretProtector.Unprotect(server.EncryptedWebhookSecret);
+        if (string.IsNullOrEmpty(webhookSecret))
             return Unauthorized();
 
-        _ = Task.Run(() => depixService.ProcessWebhookAsync(body, CancellationToken.None), CancellationToken.None);
+        var rawBody = await ReadBodyAsync();
+        var signatureHeader = Request.Headers["X-DePix-Signature"].ToString();
+
+        if (!Utils.ValidateHmacSignature(rawBody, signatureHeader, webhookSecret))
+            return Unauthorized();
+
+        var payload = JsonSerializer.Deserialize<DepixWebhookPayload>(rawBody);
+        if (payload?.Data.Id is null)
+            return BadRequest();
+
+        _ = Task.Run(() => depixService.ProcessWebhookAsync(payload, CancellationToken.None), CancellationToken.None);
         return Ok();
     }
 
-    private bool ValidateWebhookSecret(string? storedHash)
+    private async Task<string> ReadBodyAsync()
     {
-        if (string.IsNullOrEmpty(storedHash))
-            return false;
-
-        if (!Request.Headers.TryGetValue("Authorization", out var auth) ||
-            !auth.ToString().StartsWith("Basic ", StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        var param = auth.ToString()["Basic ".Length..].Trim();
-        var candidateSecret = Utils.ExtractSecretFromBasic(param);
-        if (candidateSecret is null)
-            return false;
-
-        var candidateHash = Utils.ComputeSecretHash(candidateSecret);
-        return Utils.FixedEqualsHex(candidateHash, storedHash);
+        Request.EnableBuffering();
+        Request.Body.Position = 0;
+        using var reader = new StreamReader(Request.Body, Encoding.UTF8, leaveOpen: true);
+        var body = await reader.ReadToEndAsync();
+        Request.Body.Position = 0;
+        return body;
     }
 }
