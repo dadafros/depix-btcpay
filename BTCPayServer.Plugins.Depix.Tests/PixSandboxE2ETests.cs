@@ -81,7 +81,7 @@ public class PixSandboxE2ETests : PlaywrightBaseTest
         var body = JsonSerializer.Serialize(new
         {
             @event = "checkout.completed",
-            data = new { id = checkoutId, status = "completed", amount = 100 }
+            data = new { id = checkoutId, status = "completed", amount = 1000 }
         });
         var signatureHeader = BuildHmacSignature(body, webhookSecret);
 
@@ -128,9 +128,13 @@ public class PixSandboxE2ETests : PlaywrightBaseTest
         if (conn.State != System.Data.ConnectionState.Open)
             await conn.OpenAsync();
 
+        // Use "USD" (not "BRL") because the invoice was created as USD and its rate book
+        // only contains BTC/USD rates. InvoiceEntity.UpdateTotals() iterates every prompt's
+        // currency and calls RateBook.GetRate — using BRL here would throw
+        // "Rate rule is not evaluated (PreprocessError)" since no BRL/USD rate exists.
         var promptJson = new JsonObject
         {
-            ["currency"]         = "BRL",
+            ["currency"]         = "USD",
             ["divisibility"]     = 2,
             ["paymentMethodFee"] = "0",
             ["destination"]      = "test-pix-payload",
