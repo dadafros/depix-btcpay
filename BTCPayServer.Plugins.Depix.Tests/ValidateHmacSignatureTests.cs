@@ -45,17 +45,9 @@ public class ValidateHmacSignatureTests
         // DePix API might send uppercase hex — we must accept both cases
         var ts = NowUnix();
         var body = """{"event":"deposit.completed"}""";
-        var header = BuildSignature(body, ts).Replace("v1=", "v1=").ToUpper()
-                         .Replace("T=", "t=").Replace("V1=", "v1=");
-
-        // Reconstruct with uppercase HMAC only
-        var parts = BuildSignature(body, ts);
-        var upperHeader = parts.Replace("v1=", "v1=") // leave prefix lowercase
-                               .Replace(",v1=", ",v1="); // HMAC value uppercased manually below
         var signedPayload = $"{ts}.{body}";
         var hmacBytes = HMACSHA256.HashData(Encoding.UTF8.GetBytes(Secret), Encoding.UTF8.GetBytes(signedPayload));
-        var upperHex = Convert.ToHexString(hmacBytes).ToUpperInvariant(); // uppercase
-        var upperCaseHeader = $"t={ts},v1={upperHex}";
+        var upperCaseHeader = $"t={ts},v1={Convert.ToHexString(hmacBytes).ToUpperInvariant()}";
 
         Assert.True(Utils.ValidateHmacSignature(body, upperCaseHeader, Secret));
     }
@@ -97,8 +89,9 @@ public class ValidateHmacSignatureTests
     [Fact]
     public void Signature_TimestampAtBoundary_ReturnsTrue()
     {
-        // Exactly 300 s old is on the edge — |diff| == 300 which is NOT > 300, so it must pass
-        var ts = NowUnix() - 300;
+        // Use -299 (not -300) to avoid flakiness: the sub-second delay between NowUnix()
+        // and the ValidateHmacSignature call could push a -300 timestamp just past the boundary.
+        var ts = NowUnix() - 299;
         var body = "{}";
         var header = BuildSignature(body, ts);
 

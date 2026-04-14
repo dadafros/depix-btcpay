@@ -39,7 +39,9 @@ public static class DepixStatusExtensions
             DepixStatus.Processing => current.Status == InvoiceStatus.Settled
                 ? null
                 : new InvoiceState(InvoiceStatus.Processing, InvoiceExceptionStatus.None),
-            DepixStatus.Completed => new InvoiceState(InvoiceStatus.Settled, InvoiceExceptionStatus.None),
+            DepixStatus.Completed => current.Status == InvoiceStatus.Settled
+                ? null
+                : new InvoiceState(InvoiceStatus.Settled, InvoiceExceptionStatus.None),
             DepixStatus.Expired => current.Status == InvoiceStatus.Settled
                 ? null
                 : new InvoiceState(InvoiceStatus.Expired, InvoiceExceptionStatus.None),
