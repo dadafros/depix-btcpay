@@ -11,6 +11,7 @@ using BTCPayServer.Client.Models;
 using BTCPayServer.Services.Invoices;
 using BTCPayServer.Tests;
 using Dapper;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Playwright;
 using Xunit;
 using Xunit.Abstractions;
