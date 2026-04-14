@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using BTCPayServer.Plugins.Depix.Data.Models;
 using BTCPayServer.Plugins.Depix.Services;
+using BTCPayServer.Services.Invoices;
 using BTCPayServer.Services.Stores;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
