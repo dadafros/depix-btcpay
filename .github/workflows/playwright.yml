@@ -66,6 +66,9 @@ jobs:
         run: docker compose -f submodules/btcpayserver/BTCPayServer.Tests/docker-compose.yml up -d dev --build
 
       - name: Run Playwright UI tests
+        env:
+          DEPIX_TEST_API_KEY: ${{ secrets.DEPIX_TEST_API_KEY }}
+          DEPIX_TEST_WEBHOOK_SECRET: ${{ secrets.DEPIX_TEST_WEBHOOK_SECRET }}
         run: dotnet test BTCPayServer.Plugins.Depix.Tests/BTCPayServer.Plugins.Depix.Tests.csproj -c Debug --no-build --filter "Category=PlaywrightUITest"
 
       - name: Cleanup Docker
