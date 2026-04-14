@@ -151,6 +151,45 @@ git tag v1.0.6
 git push git@github-personal:dadafros/depix-btcpay.git v1.0.6
 ```
 
+## BTCPay Server compatibility
+
+The plugin depends on the BTCPay Server codebase via the `submodules/btcpayserver/` submodule, pinned to a specific commit. BTCPay internal APIs (payment handlers, store repository, etc.) can change between versions and silently break the plugin.
+
+### On every commit
+
+Check the minimum version requirement in `BTCPayServer.Plugins.Depix/BTCPayServer.Plugins.Depix.csproj`:
+```xml
+<BTCPayMinVersion>2.3.7</BTCPayMinVersion>
+```
+If the code relies on an API that only exists in a newer BTCPay version, bump this value so users on older versions get a clear error instead of silent breakage.
+
+### When BTCPay releases a new version
+
+1. Check the release notes at `github.com/btcpayserver/btcpayserver/releases` for breaking changes to plugin APIs.
+2. Update the submodule to the new release tag:
+   ```bash
+   cd submodules/btcpayserver
+   git fetch --tags
+   git checkout v2.x.y   # target tag
+   cd ../..
+   git add submodules/btcpayserver
+   git commit -m "chore: update btcpayserver submodule to v2.x.y"
+   ```
+3. Push to master — CI builds against the updated submodule. Fix any compilation errors before tagging a release.
+4. If the new BTCPay version raises the effective minimum, update `<BTCPayMinVersion>` accordingly.
+
+### APIs most likely to break
+
+- `IPaymentMethodHandler` and `ConfigurePrompt` signature
+- `PaymentMethodHandlerDictionary`
+- `StoreRepository` / `StoreData` extension methods
+- Razor view base classes and tag helpers
+- `ISecretProtector` / Data Protection wiring in DI
+
+### Official plugin store (future)
+
+Plugins submitted to `github.com/btcpayserver/btcpayserver-plugins` are distributed via the BTCPay built-in plugin store. That repo has its own review process and CI requirements. Until we submit there, users install manually from GitHub Releases — that flow is documented in README.md.
+
 ## Git
 
 - Remote: `git@github-personal:dadafros/depix-btcpay.git`
