@@ -343,8 +343,8 @@ public class DepixService(
         var where = new List<string>
         {
             "\"StoreDataId\" = @storeId",
-            // Include both new (checkoutId) and legacy (qrId) invoices
-            "(\"Blob2\"->'prompts'->'PIX'->'details'->>'checkoutId' IS NOT NULL OR \"Blob2\"->'prompts'->'PIX'->'details'->>'qrId' IS NOT NULL)"
+            // Include both new (checkoutId) and legacy (qrId) invoices — outer parens required by PostgreSQL operator precedence
+            "((\"Blob2\"->'prompts'->'PIX'->'details'->>'checkoutId') IS NOT NULL OR (\"Blob2\"->'prompts'->'PIX'->'details'->>'qrId') IS NOT NULL)"
         };
         if (!string.IsNullOrWhiteSpace(query.Status))
             where.Add("\"Blob2\"->'prompts'->'PIX'->'details'->>'status' = @status");
@@ -367,7 +367,7 @@ public class DepixService(
                    SELECT
                      "Id" AS "InvoiceId",
                      "Created"::timestamptz AS "Created",
-                     ("Blob2"->'prompts'->'PIX'->'details'->>'checkoutId')     AS "QrId",
+                     COALESCE(("Blob2"->'prompts'->'PIX'->'details'->>'checkoutId'), ("Blob2"->'prompts'->'PIX'->'details'->>'qrId')) AS "QrId",
                      ("Blob2"->'prompts'->'PIX'->'details'->>'depixAddress')   AS "DepixAddress",
                      NULLIF(("Blob2"->'prompts'->'PIX'->'details'->>'amount'), '')::int AS "ValueInCents",
                      COALESCE(("Blob2"->'prompts'->'PIX'->'details'->>'status'), 'pending')   AS "DepixStatusRaw"
