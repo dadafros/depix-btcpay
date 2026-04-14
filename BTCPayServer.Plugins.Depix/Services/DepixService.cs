@@ -205,6 +205,7 @@ public class DepixService(
         var httpClientFactory = serviceProvider.GetRequiredService<IHttpClientFactory>();
         var client = httpClientFactory.CreateClient();
         client.BaseAddress = new Uri("https://depix-backend.vercel.app/api/");
+        client.Timeout = TimeSpan.FromSeconds(15);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
         return client;
     }
@@ -279,7 +280,11 @@ public class DepixService(
         var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
         var resp = await client.PostAsync("checkouts", content, ct);
         if (!resp.IsSuccessStatusCode)
-            throw new PaymentMethodUnavailableException("Failed to create DePix checkout");
+        {
+            var errorBody = await resp.Content.ReadAsStringAsync(ct);
+            throw new PaymentMethodUnavailableException(
+                $"Failed to create DePix checkout: HTTP {(int)resp.StatusCode} — {errorBody[..Math.Min(500, errorBody.Length)]}");
+        }
 
         var body = await resp.Content.ReadAsStringAsync(ct);
         using var doc = JsonDocument.Parse(body);
@@ -338,7 +343,8 @@ public class DepixService(
         var where = new List<string>
         {
             "\"StoreDataId\" = @storeId",
-            "(\"Blob2\"->'prompts'->'PIX'->'details'->>'checkoutId') IS NOT NULL"
+            // Include both new (checkoutId) and legacy (qrId) invoices
+            "(\"Blob2\"->'prompts'->'PIX'->'details'->>'checkoutId' IS NOT NULL OR \"Blob2\"->'prompts'->'PIX'->'details'->>'qrId' IS NOT NULL)"
         };
         if (!string.IsNullOrWhiteSpace(query.Status))
             where.Add("\"Blob2\"->'prompts'->'PIX'->'details'->>'status' = @status");
@@ -535,7 +541,8 @@ public class DepixService(
         var payment = await paymentService.AddPayment(paymentData, new HashSet<string>(StringComparer.OrdinalIgnoreCase) { paymentId });
         if (payment is null)
         {
-            events.Publish(new InvoiceNeedUpdateEvent(entity.Id));
+            // Payment already recorded — ensure invoice reaches Settled state.
+            await ApplyStatusAndNotifyAsync(entity.Id, DepixStatus.Completed);
             return;
         }
 
@@ -649,7 +656,10 @@ public class DepixService(
                            SELECT "Id"
                            FROM "Invoices"
                            WHERE (@storeId IS NULL OR "StoreDataId" = @storeId)
-                             AND ("Blob2"->'prompts'->'PIX'->'details'->>'checkoutId') = @checkoutId
+                             AND (
+                                 ("Blob2"->'prompts'->'PIX'->'details'->>'checkoutId') = @checkoutId
+                                 OR ("Blob2"->'prompts'->'PIX'->'details'->>'qrId') = @checkoutId
+                             )
                            ORDER BY "Created" DESC
                            LIMIT 1;
                            """;

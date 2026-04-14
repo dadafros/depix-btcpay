@@ -47,6 +47,11 @@ public static class Utils
         if (string.IsNullOrEmpty(timestamp) || string.IsNullOrEmpty(signature))
             return false;
 
+        // Replay protection: reject webhooks older/newer than 5 minutes
+        if (!long.TryParse(timestamp, out var tsUnix) ||
+            Math.Abs((DateTimeOffset.UtcNow - DateTimeOffset.FromUnixTimeSeconds(tsUnix)).TotalSeconds) > 300)
+            return false;
+
         var signedPayload = $"{timestamp}.{body}";
         var secretBytes = Encoding.UTF8.GetBytes(webhookSecret);
         var payloadBytes = Encoding.UTF8.GetBytes(signedPayload);
@@ -55,7 +60,7 @@ public static class Utils
 
         return CryptographicOperations.FixedTimeEquals(
             Encoding.UTF8.GetBytes(expectedHex),
-            Encoding.UTF8.GetBytes(signature));
+            Encoding.UTF8.GetBytes(signature.ToLowerInvariant()));
     }
 
     public static bool FixedEqualsHex(string hexA, string hexB)

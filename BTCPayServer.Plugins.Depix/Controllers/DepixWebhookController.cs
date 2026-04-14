@@ -1,4 +1,5 @@
 #nullable enable
+using System;
 using System.IO;
 using System.Text;
 using System.Text.Json;
@@ -9,6 +10,7 @@ using BTCPayServer.Plugins.Depix.Services;
 using BTCPayServer.Services.Stores;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 
 namespace BTCPayServer.Plugins.Depix.Controllers;
 
@@ -18,7 +20,8 @@ public class DepixWebhookController(
     StoreRepository stores,
     PaymentMethodHandlerDictionary handlers,
     DepixService depixService,
-    ISecretProtector secretProtector)
+    ISecretProtector secretProtector,
+    ILogger<DepixWebhookController> logger)
     : ControllerBase
 {
     // Store-scoped webhook: /depix/webhooks/deposit/{storeId}
@@ -48,7 +51,11 @@ public class DepixWebhookController(
         if (payload?.Data.Id is null)
             return BadRequest();
 
-        _ = Task.Run(() => depixService.ProcessWebhookAsync(storeId, payload, CancellationToken.None), CancellationToken.None);
+        _ = Task.Run(async () =>
+        {
+            try { await depixService.ProcessWebhookAsync(storeId, payload, CancellationToken.None); }
+            catch (Exception ex) { logger.LogError(ex, "Unhandled error processing store webhook for store {StoreId}", storeId); }
+        }, CancellationToken.None);
         return Ok();
     }
 
@@ -72,7 +79,11 @@ public class DepixWebhookController(
         if (payload?.Data.Id is null)
             return BadRequest();
 
-        _ = Task.Run(() => depixService.ProcessWebhookAsync(payload, CancellationToken.None), CancellationToken.None);
+        _ = Task.Run(async () =>
+        {
+            try { await depixService.ProcessWebhookAsync(payload, CancellationToken.None); }
+            catch (Exception ex) { logger.LogError(ex, "Unhandled error processing server-scoped webhook for checkout {CheckoutId}", payload.Data.Id); }
+        }, CancellationToken.None);
         return Ok();
     }
 

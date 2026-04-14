@@ -11,7 +11,7 @@ public sealed class DepixWebhookPayload
 
 public sealed class DepixWebhookData
 {
-    [JsonPropertyName("id")] public string Id { get; set; } = null!;
+    [JsonPropertyName("id")] public string? Id { get; set; }
     [JsonPropertyName("status")] public string? Status { get; set; }
     [JsonPropertyName("amount")] public decimal? Amount { get; set; }
     [JsonPropertyName("completed_at")] public string? CompletedAt { get; set; }

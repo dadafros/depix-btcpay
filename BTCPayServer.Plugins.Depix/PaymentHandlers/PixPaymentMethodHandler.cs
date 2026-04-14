@@ -69,8 +69,6 @@ public class PixPaymentMethodHandler(
 
         using var client = depixService.CreateDepixClient(apiKey);
 
-        var address = await depixService.GenerateFreshDePixAddress(store.Id);
-
         var callbackUrl = BuildCallbackUrl(store.Id);
         var description = $"BTCPay Invoice {context.InvoiceEntity.Id}";
 
@@ -81,6 +79,9 @@ public class PixPaymentMethodHandler(
             callbackUrl,
             CancellationToken.None);
 
+        // Reserve address only after checkout is created — avoids orphaned Liquid addresses on API failures
+        var address = await depixService.GenerateFreshDePixAddress(store.Id);
+
         depixService.ApplyPromptDetails(context, checkout, address);
     }
 
@@ -89,7 +90,10 @@ public class PixPaymentMethodHandler(
         var httpContext = httpContextAccessor.HttpContext;
         if (httpContext is not null)
             return Utils.BuildWebhookUrl(httpContext.Request, storeId);
-        return $"/depix/webhooks/deposit/{storeId}";
+
+        throw new PaymentMethodUnavailableException(
+            "Cannot build absolute webhook callback URL: no HTTP context available. " +
+            "Ensure a canonical BTCPay Server URL is configured.");
     }
 
     /// <summary>
