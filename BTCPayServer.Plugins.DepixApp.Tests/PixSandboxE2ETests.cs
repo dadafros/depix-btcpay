@@ -69,7 +69,11 @@ public class PixSandboxE2ETests : PlaywrightBaseTest
         await Page.Locator("#ApiKey").FillAsync(apiKey);
         await Page.Locator("#WebhookSecret").FillAsync(webhookSecret);
         await Page.GetByRole(AriaRole.Button, new() { Name = "Save" }).ClickAsync();
-        await Tester.FindAlertMessage(partialText: "Pix configuration applied");
+        // DePix API validation during save can take up to 15s; allow extra time for page reload.
+        var alert = Page.Locator(".alert-success");
+        await alert.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 25000 });
+        var alertText = await alert.TextContentAsync();
+        Assert.Contains("Pix configuration applied", alertText);
 
         // Step 3: inject a fake DePix checkout ID directly into the invoice Blob2.
         // ConfigurePrompt (which would normally do this) requires a Liquid wallet not
