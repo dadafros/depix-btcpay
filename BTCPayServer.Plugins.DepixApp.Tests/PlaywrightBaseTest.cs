@@ -17,7 +17,7 @@ namespace BTCPayServer.Plugins.DepixApp.Tests;
 
 public abstract class PlaywrightBaseTest : IAsyncLifetime
 {
-    private static readonly PaymentMethodId PixPaymentMethodId = new("PIX");
+    protected static readonly PaymentMethodId PixPaymentMethodId = new("PIX");
     private const string PluginAssemblySimpleName = "BTCPayServer.Plugins.DepixApp";
     private const string SecretProtectorTypeName = "BTCPayServer.Plugins.DepixApp.Services.ISecretProtector";
     private const string PixServerConfigTypeName = "BTCPayServer.Plugins.DepixApp.Data.Models.PixServerConfig";
@@ -154,7 +154,7 @@ public abstract class PlaywrightBaseTest : IAsyncLifetime
                ?? throw new InvalidOperationException("Could not find the runtime-loaded DePix plugin assembly.");
     }
 
-    private string ProtectSecret(string value)
+    protected string ProtectSecret(string value)
     {
         var pluginAssembly = GetPluginRuntimeAssembly();
         var protectorType = pluginAssembly.GetType(SecretProtectorTypeName)
