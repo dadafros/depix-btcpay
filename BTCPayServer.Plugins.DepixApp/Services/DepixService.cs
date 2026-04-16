@@ -370,7 +370,7 @@ public class DepixService(
                      "Created"::timestamptz AS "Created",
                      COALESCE(("Blob2"->'prompts'->'PIX'->'details'->>'checkoutId'), ("Blob2"->'prompts'->'PIX'->'details'->>'qrId')) AS "QrId",
                      ("Blob2"->'prompts'->'PIX'->'details'->>'depixAddress')   AS "DepixAddress",
-                     NULLIF(("Blob2"->'prompts'->'PIX'->'details'->>'amount'), '')::int AS "ValueInCents",
+                     NULLIF(("Blob2"->'prompts'->'PIX'->'details'->>'amount'), '')::numeric::int AS "ValueInCents",
                      COALESCE(("Blob2"->'prompts'->'PIX'->'details'->>'status'), 'pending')   AS "DepixStatusRaw"
                    FROM "Invoices"
                    WHERE {string.Join(" AND ", where)}
