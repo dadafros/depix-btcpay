@@ -36,11 +36,10 @@
                 <strong>Pix payment limits:</strong> Pix payments are accepted between
                 <strong>R$ 5.00</strong> and <strong>R$ 3,000.00</strong>.
                 Invoices outside this range will not show Pix as a payment option.
-                <br />
-                <small class="text-muted">
+                <div class="mt-1">
                     If your Point of Sale accepts custom amounts, consider setting a minimum of R$ 5.00
                     to ensure Pix is always available.
-                </small>
+                </div>
             </div>
 
             @if (Model.EffectiveUsesServerConfig && !Model.IsStoreCfgValid)
