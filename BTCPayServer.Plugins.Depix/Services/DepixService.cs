@@ -179,7 +179,7 @@ public class DepixService(
 
         var wallet = walletProvider.GetWallet(depixNetwork);
         if (wallet == null)
-            throw new PixPaymentException("Depix wallet not configured");
+            throw new PixPaymentException("DePix wallet not configured");
 
 
         const string generatedBy = "invoice";
@@ -292,7 +292,7 @@ public class DepixService(
 
         var id         = root.GetProperty("id").GetString();
         var paymentUrl = root.GetProperty("payment_url").GetString();
-        var pixPayload = root.GetProperty("pix_payload").GetString();
+        var pixPayload = root.GetProperty("pix").GetProperty("qr_code").GetString();
         var expiresAt  = root.GetProperty("expires_at").GetString();
 
         if (string.IsNullOrEmpty(id))
