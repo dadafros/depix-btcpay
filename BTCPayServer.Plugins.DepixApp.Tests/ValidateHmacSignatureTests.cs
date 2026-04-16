@@ -4,7 +4,7 @@ using System.Text;
 using BTCPayServer.Plugins.DepixApp.Services;
 using Xunit;
 
-namespace BTCPayServer.Plugins.DepixAppApp.Tests;
+namespace BTCPayServer.Plugins.DepixApp.Tests;
 
 /// <summary>
 /// Unit tests for Utils.ValidateHmacSignature — covers the HMAC-SHA256 webhook

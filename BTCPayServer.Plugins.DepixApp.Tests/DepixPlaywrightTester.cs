@@ -7,7 +7,7 @@ using BTCPayServer.Tests;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Playwright;
 
-namespace BTCPayServer.Plugins.DepixAppApp.Tests;
+namespace BTCPayServer.Plugins.DepixApp.Tests;
 
 public class DepixPlaywrightTester : PlaywrightTester
 {

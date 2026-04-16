@@ -23,7 +23,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BTCPayServer.Rating", "subm
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BTCPayServer.Common", "submodules\btcpayserver\BTCPayServer.Common\BTCPayServer.Common.csproj", "{9500B5D0-B72B-46B4-A664-5FD9491731EE}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BTCPayServer.Plugins.DepixAppApp.Tests", "BTCPayServer.Plugins.DepixAppApp.Tests\BTCPayServer.Plugins.DepixAppApp.Tests.csproj", "{C46F63BC-5363-4A12-A02C-5B9DC3810CFA}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BTCPayServer.Plugins.DepixApp.Tests", "BTCPayServer.Plugins.DepixApp.Tests\BTCPayServer.Plugins.DepixApp.Tests.csproj", "{C46F63BC-5363-4A12-A02C-5B9DC3810CFA}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BTCPayServer.Tests", "submodules\btcpayserver\BTCPayServer.Tests\BTCPayServer.Tests.csproj", "{721B4EF4-2A51-4CCB-ACDE-E0603E1E36DA}"
 EndProject

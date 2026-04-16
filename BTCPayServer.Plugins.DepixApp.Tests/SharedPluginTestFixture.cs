@@ -2,7 +2,7 @@ using System;
 using System.IO;
 using Xunit;
 
-namespace BTCPayServer.Plugins.DepixAppApp.Tests;
+namespace BTCPayServer.Plugins.DepixApp.Tests;
 
 [CollectionDefinition(CollectionName, DisableParallelization = true)]
 public sealed class SharedPluginTestCollection : ICollectionFixture<SharedPluginTestFixture>

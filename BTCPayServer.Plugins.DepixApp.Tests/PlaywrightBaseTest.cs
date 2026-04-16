@@ -13,7 +13,7 @@ using Newtonsoft.Json.Linq;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace BTCPayServer.Plugins.DepixAppApp.Tests;
+namespace BTCPayServer.Plugins.DepixApp.Tests;
 
 public abstract class PlaywrightBaseTest : IAsyncLifetime
 {

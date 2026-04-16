@@ -43,7 +43,7 @@ All new code must be written in English — variable names, function names, comm
 ## File Structure
 
 ```
-BTCPayServer.Plugins.DepixAppApp/
+BTCPayServer.Plugins.DepixApp/
 ├── DePixPlugin.cs                          # Plugin entry point, DI registration, Liquid asset setup
 ├── Controllers/
 │   ├── PixController.cs                    # Store settings + transactions UI
@@ -75,7 +75,7 @@ BTCPayServer.Plugins.DepixAppApp/
 ├── Resources/img/                          # DePix icon assets
 └── Errors/                                 # Custom exception types
 
-BTCPayServer.Plugins.DepixAppApp.Tests/
+BTCPayServer.Plugins.DepixApp.Tests/
 ├── PlaywrightBaseTest.cs                   # Base class — server setup, config seeding, navigation helpers
 ├── PixSettingsTests.cs                     # Store settings UI tests
 ├── PixServerSettingsTests.cs               # Server settings UI tests

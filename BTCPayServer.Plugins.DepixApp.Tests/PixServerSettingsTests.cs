@@ -5,7 +5,7 @@ using Microsoft.Playwright;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace BTCPayServer.Plugins.DepixAppApp.Tests;
+namespace BTCPayServer.Plugins.DepixApp.Tests;
 
 [Collection(SharedPluginTestCollection.CollectionName)]
 public class PixServerSettingsTests : PlaywrightBaseTest
