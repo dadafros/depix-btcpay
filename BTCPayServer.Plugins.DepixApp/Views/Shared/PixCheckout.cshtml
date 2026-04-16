@@ -1,11 +1,8 @@
 <template id="PixCheckout">
     <div class="payment-box text-center">
-        <qrcode
-            :value="model.invoiceBitcoinUrlQR"
-            tag="img"
-            :options="{ width: 256, margin: 1 }"
-            class="img-fluid d-block mx-auto my-3"
-        />
+        <div v-if="model.invoiceBitcoinUrlQR" class="qr-container mx-auto my-3">
+            <qrcode :value="model.invoiceBitcoinUrlQR" tag="div" :options="qrOptions" />
+        </div>
         <p class="mb-3">Para fazer o pagamento, aponte a câmera para o QR Code ou copie o PIX Copia e Cola</p>
 
         <div class="input-group mb-3">
