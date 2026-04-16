@@ -9,10 +9,11 @@ using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using BTCPayServer.Payments;
 using BTCPayServer.Services.Invoices;
+using BTCPayServer.Services.Stores;
 using BTCPayServer.Tests;
 using Dapper;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Playwright;
+using Newtonsoft.Json.Linq;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -27,21 +28,21 @@ public class PixSandboxE2ETests : PlaywrightBaseTest
     }
 
     /// <summary>
-    /// Full payment flow using real sandbox credentials.
+    /// Webhook + settlement flow using real sandbox credentials.
     /// Skipped when DEPIX_TEST_API_KEY and DEPIX_TEST_WEBHOOK_SECRET are not set.
     ///
     /// What this tests:
-    ///   - API key is valid (real HTTP call to DePix POST /api/me via the settings form save)
     ///   - Webhook HMAC validation accepts a correctly signed payload (200 OK)
-    ///   - ProcessWebhookAsync records the payment and settles the invoice
+    ///   - ProcessWebhookAsync records the payment and updates the invoice prompt
     ///
     /// What this does NOT test:
+    ///   - API key validation via UI (tested separately in PixSettingsTests)
     ///   - The Liquid wallet / address generation (bypassed via direct SQL injection)
     ///   - DePix delivering the webhook to our endpoint (simulated locally)
     /// </summary>
     [Fact(Timeout = TestUtils.TestTimeout)]
     [Trait("Category", "PlaywrightUITest")]
-    public async Task CanValidateSandboxApiKeyAndSettleInvoiceViaWebhook()
+    public async Task CanSettleInvoiceViaSignedWebhook()
     {
         var apiKey = Environment.GetEnvironmentVariable("DEPIX_TEST_API_KEY");
         var webhookSecret = Environment.GetEnvironmentVariable("DEPIX_TEST_WEBHOOK_SECRET");
@@ -62,18 +63,10 @@ public class PixSandboxE2ETests : PlaywrightBaseTest
         var invoiceId = await Tester.CreateInvoice(10m, "USD");
         Assert.False(string.IsNullOrEmpty(invoiceId));
 
-        // Step 2: save real credentials via the store settings UI.
-        // PixController validates the API key against GET /api/me before saving.
-        // Done after invoice creation so PIX is not yet enabled when the invoice is created.
-        await GoToPixSettingsAsync();
-        await Page.Locator("#ApiKey").FillAsync(apiKey);
-        await Page.Locator("#WebhookSecret").FillAsync(webhookSecret);
-        await Page.GetByRole(AriaRole.Button, new() { Name = "Save" }).ClickAsync();
-        // DePix API validation during save can take up to 15s; allow extra time for page reload.
-        var alert = Page.Locator(".alert-success");
-        await alert.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 25000 });
-        var alertText = await alert.TextContentAsync();
-        Assert.Contains("Pix configuration applied", alertText);
+        // Step 2: seed real sandbox credentials directly into the store config.
+        // This avoids calling the DePix API (GET /api/me) which is unreliable from CI.
+        // API key validation via the settings UI is covered by PixSettingsTests.
+        await SeedStorePixConfigWithCredentialsAsync(apiKey, webhookSecret);
 
         // Step 3: inject a fake DePix checkout ID directly into the invoice Blob2.
         // ConfigurePrompt (which would normally do this) requires a Liquid wallet not
@@ -156,6 +149,29 @@ public class PixSandboxE2ETests : PlaywrightBaseTest
             WHERE "Id" = @invoiceId
             """,
             new { invoiceId, promptJson });
+    }
+
+    private async Task SeedStorePixConfigWithCredentialsAsync(string apiKey, string webhookSecret)
+    {
+        var storeId = Tester.StoreId ?? throw new InvalidOperationException("Create a store first.");
+        var storeRepository = Server.PayTester.GetService<StoreRepository>();
+        var store = await storeRepository.FindStore(storeId)
+                    ?? throw new InvalidOperationException($"Store {storeId} not found.");
+
+        var config = new JObject
+        {
+            ["encryptedApiKey"] = ProtectSecret(apiKey),
+            ["encryptedWebhookSecret"] = ProtectSecret(webhookSecret),
+            ["isEnabled"] = true
+        };
+
+        store.SetPaymentMethodConfig(PixPaymentMethodId, config);
+
+        var blob = store.GetStoreBlob();
+        blob.SetExcluded(PixPaymentMethodId, false);
+        store.SetStoreBlob(blob);
+
+        await storeRepository.UpdateStore(store);
     }
 
     private static string BuildHmacSignature(string body, string secret)
