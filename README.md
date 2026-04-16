@@ -1,4 +1,4 @@
-# DePix Plugin for BTCPay Server
+# DePix App Plugin for BTCPay Server
 
 Accept **Pix** payments in your BTCPay Server store and receive funds in **DePix** — a Liquid Network BRL stablecoin (1 DEPIX = 1 BRL). Powered by the [DePix App](https://depixapp.com).
 
