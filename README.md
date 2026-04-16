@@ -17,7 +17,7 @@ The plugin adds two payment methods to your store:
 ## Requirements
 
 - BTCPay Server >= 2.3.7
-- A **DePix API key** (`sk_live_...` or `sk_test_...`) — get one at [depixapp.com/btcpay](https://depixapp.com/btcpay)
+- A **DePix App API key** (`sk_live_...` or `sk_test_...`) — get one at [depixapp.com/btcpay](https://depixapp.com/btcpay)
 - A **webhook secret** (`whsec_...`) from the DePix App Merchant Area
 
 ## Setup
@@ -90,18 +90,16 @@ Liquid transaction fees are paid in **L-BTC**. Keep a small L-BTC balance to cov
 
 ## FAQ
 
-**Where do I get the API key?**
+**Where do I get the API key and webhook secret?**
 Create an account at [depixapp.com/btcpay](https://depixapp.com/btcpay). API keys are self-service.
-
-**Where do I get the webhook secret?**
-In the DePix App Merchant Area, under your merchant settings.
+Go to the DePix App Merchant (Lojista) Area, under API e Webhooks section.
 
 **Pix doesn't appear on invoices. What's wrong?**
 Check that both API key and webhook secret are configured (at store or server level), and that Pix is enabled in the settings.
 
 ## Support
 
-For questions or issues with the DePix plugin, join the [Telegram group](https://t.me/+xFiXWiZPAQ05O).
+For questions or issues with the DePix plugin, join the [Whatsapp group](https://chat.whatsapp.com/KWuysHsJhXwCQOpYHJZUP5?mode=gi_t).
 
 ## License
 
