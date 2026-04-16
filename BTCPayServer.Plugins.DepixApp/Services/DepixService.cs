@@ -39,26 +39,6 @@ namespace BTCPayServer.Plugins.DepixApp.Services;
 /// <summary>
 /// Service for managing DePix integration
 /// </summary>
-/// <summary>
-    /// Minimum checkout amount in cents accepted by the DePix API.
-    /// </summary>
-    public const int MinAmountCents = 500;
-
-    /// <summary>
-    /// Maximum checkout amount in cents accepted by the DePix API.
-    /// </summary>
-    public const int MaxAmountCents = 300_000;
-
-    /// <summary>
-    /// Minimum checkout amount in BRL.
-    /// </summary>
-    public const decimal MinAmountBrl = MinAmountCents / 100m;
-
-    /// <summary>
-    /// Maximum checkout amount in BRL.
-    /// </summary>
-    public const decimal MaxAmountBrl = MaxAmountCents / 100m;
-
 public class DepixService(
     IServiceProvider serviceProvider,
     IServiceScopeFactory scopeFactory,
@@ -71,6 +51,14 @@ public class DepixService(
     ISettingsRepository settingsRepository
 )
 {
+    /// <summary>Minimum checkout amount in cents accepted by the DePix API.</summary>
+    public const int MinAmountCents = 500;
+    /// <summary>Maximum checkout amount in cents accepted by the DePix API.</summary>
+    public const int MaxAmountCents = 300_000;
+    /// <summary>Minimum checkout amount in BRL.</summary>
+    public const decimal MinAmountBrl = MinAmountCents / 100m;
+    /// <summary>Maximum checkout amount in BRL.</summary>
+    public const decimal MaxAmountBrl = MaxAmountCents / 100m;
 
     /// <summary>
     /// Source of the DePix configuration
