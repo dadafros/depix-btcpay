@@ -40,12 +40,26 @@
                 class="btn btn-warning w-100"
                 :disabled="simulating"
                 v-on:click="simulate">
-                {{ simulating ? 'Simulando...' : 'Simular pagamento (sandbox)' }}
+                <span v-if="simulating">Aguardando processamento do pagamento<span class="dots"></span></span>
+                <span v-else>Simular pagamento (sandbox)</span>
             </button>
             <p v-if="simulateError" class="text-danger mt-2 small">{{ simulateError }}</p>
         </div>
     </div>
 </template>
+
+<style>
+    .dots::after {
+        content: '';
+        animation: dots 1.5s steps(4, end) infinite;
+    }
+    @@keyframes dots {
+        0%  { content: ''; }
+        25% { content: '.'; }
+        50% { content: '..'; }
+        75% { content: '...'; }
+    }
+</style>
 
 <script>
     Vue.component("PixCheckout", {
@@ -64,8 +78,6 @@
                     })
                     .catch(function (err) {
                         this.simulateError = "Erro ao simular: " + err.message;
-                    }.bind(this))
-                    .finally(function () {
                         this.simulating = false;
                     }.bind(this));
             }

@@ -512,7 +512,8 @@ public class DepixService(
             return;
         }
 
-        var amount = data.Amount ?? pixPrompt.Calculate().TotalDue;
+        // Webhook amount is in cents; BTCPay expects BRL (divisibility=2)
+        var amount = data.Amount is { } cents ? cents / 100m : pixPrompt.Calculate().TotalDue;
         if (amount <= 0m)
         {
             logger.LogWarning("DePix webhook: completed with invalid amount {Amount} for invoice {InvoiceId}", amount, entity.Id);
