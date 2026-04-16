@@ -65,6 +65,9 @@
     Vue.component("PixCheckout", {
         props: ["model"],
         template: "#PixCheckout",
+        components: {
+            qrcode: VueQrcode
+        },
         data: function () {
             return { simulating: false, simulateError: null };
         },
