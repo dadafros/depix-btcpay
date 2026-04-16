@@ -68,6 +68,13 @@ public class PixPaymentMethodHandler(
         var amountInBrl = context.Prompt.Calculate().Due;
         var amountInCents = (int)Math.Round(amountInBrl * 100m, MidpointRounding.AwayFromZero);
 
+        if (amountInCents < DepixService.MinAmountCents)
+            throw new PaymentMethodUnavailableException(
+                $"Amount R$ {amountInBrl:F2} is below the Pix minimum of R$ {DepixService.MinAmountBrl:F2}");
+        if (amountInCents > DepixService.MaxAmountCents)
+            throw new PaymentMethodUnavailableException(
+                $"Amount R$ {amountInBrl:F2} exceeds the Pix maximum of R$ {DepixService.MaxAmountBrl:F2}");
+
         using var client = depixService.CreateDepixClient(apiKey);
 
         var callbackUrl = BuildCallbackUrl(store.Id);
