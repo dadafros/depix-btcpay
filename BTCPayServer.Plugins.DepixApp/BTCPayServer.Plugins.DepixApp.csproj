@@ -8,7 +8,7 @@
   <PropertyGroup>
     <Product>DePix App Plugin</Product>
     <Description>Enables store owners to accept Pix payments automatically converted to DePix (BRL stablecoin on Liquid Network).</Description>
-    <Version>1.1.0</Version>
+    <Version>1.2.0</Version>
     <BTCPayMinVersion>2.3.7</BTCPayMinVersion>
     <Authors>dadafros</Authors>
     <RepositoryUrl>https://github.com/dadafros/depix-btcpay</RepositoryUrl>
