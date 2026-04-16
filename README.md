@@ -30,7 +30,7 @@ In BTCPay: **Plugins → Manage Plugins → search for DePix**. Restart when pro
 
 **Option B — Manual install (available now)**
 
-1. Go to [**Releases**](https://github.com/dadafros/depix-btcpay/releases) and download the latest `BTCPayServer.Plugins.Depix.btcpay` file.
+1. Go to [**Releases**](https://github.com/dadafros/depix-btcpay/releases) and download the latest `BTCPayServer.Plugins.DepixApp.btcpay` file.
 2. In BTCPay: **Plugins → Manage Plugins → Upload Plugin**.
 3. Select the downloaded `.btcpay` file and confirm.
 4. Restart BTCPay when prompted.

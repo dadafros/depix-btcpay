@@ -24,11 +24,11 @@ jobs:
           dotnet-version: 10.0.x
 
       - name: Restore dependencies
-        run: dotnet restore BTCPayServer.Plugins.Depix/BTCPayServer.Plugins.Depix.csproj /p:RazorCompileOnBuild=true
+        run: dotnet restore BTCPayServer.Plugins.DepixApp/BTCPayServer.Plugins.DepixApp.csproj /p:RazorCompileOnBuild=true
 
       - name: Publish plugin
         run: |
-          dotnet publish BTCPayServer.Plugins.Depix/BTCPayServer.Plugins.Depix.csproj \
+          dotnet publish BTCPayServer.Plugins.DepixApp/BTCPayServer.Plugins.DepixApp.csproj \
             -c Release \
             --no-restore \
             /p:RazorCompileOnBuild=true \
@@ -36,7 +36,7 @@ jobs:
 
       - name: Package as .btcpay
         run: |
-          PLUGIN_NAME="BTCPayServer.Plugins.Depix"
+          PLUGIN_NAME="BTCPayServer.Plugins.DepixApp"
           # If the SDK already produced a .btcpay file, use it; otherwise zip the publish output
           if [ -f "publish/${PLUGIN_NAME}.btcpay" ]; then
             cp "publish/${PLUGIN_NAME}.btcpay" "${PLUGIN_NAME}.btcpay"

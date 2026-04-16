@@ -1,0 +1,208 @@
+@using BTCPayServer.Abstractions.Extensions
+@using BTCPayServer.Plugins.DepixApp
+@model BTCPayServer.Plugins.DepixApp.Data.Models.ViewModels.PixTransactionsViewModel
+
+@{
+  var depixWalletUrl = $"/stores/{Model.StoreId}/onchain/{DePixPlugin.DePixCryptoCode}";
+
+  ViewData.SetActivePage(
+      activePage: "PixTransactions",
+      category: DePixPlugin.PluginNavKey,
+      title: "Pix – Transactions",
+      activeId: "Pix"
+  );
+  
+  var statusFilter = ViewData["StatusFilter"] as string ?? "";
+  var query        = ViewData["Query"] as string ?? "";
+  var from         = ViewData["From"] as string ?? "";
+  var to           = ViewData["To"] as string ?? "";
+
+  string Badge(string s) => (s ?? "").ToLowerInvariant() switch
+  {
+      "completed" => "bg-success",
+      "processing" => "bg-warning text-dark",
+      "pending" => "bg-secondary",
+      "expired" => "bg-dark",
+      "cancelled" => "bg-danger",
+      _ => "bg-secondary"
+  };
+}
+
+@{ 
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const $btn = document.querySelector('.switch-time-format');
+            if (typeof formatDateTimes === 'function' && $btn) {
+                const mode = $btn.dataset.mode || 'local';
+                formatDateTimes(mode);
+                $btn.addEventListener('click', () => {
+                    const next = $btn.dataset.mode === 'utc' ? 'local' : 'utc';
+                    $btn.dataset.mode = next;
+                    formatDateTimes(next);
+                });
+            }
+        });
+    </script>
+}
+
+<div class="sticky-header">
+</div>
+
+<partial name="_StatusMessage" />
+
+@if (!Model.ConfigStatus.DePixActive)
+{
+    <div class="alert alert-warning d-flex align-items-center justify-content-between" role="alert">
+        <div>
+            <strong>DePix wallet not configured.</strong>
+            <span class="ms-2">Set up the DePix wallet for this store.</span>
+        </div>
+        <a class="btn btn-sm btn-primary"
+           href="@depixWalletUrl"
+           target="_blank" rel="noopener">
+            Configure DePix Wallet
+        </a>
+    </div>
+}
+else if (!Model.ConfigStatus.ApiKeyConfigured)
+{
+    <div class="alert alert-warning d-flex align-items-center justify-content-between" role="alert">
+        <div>
+            <strong>DePix API key missing.</strong>
+            <span class="ms-2">Add your DePix API key to enable Pix transactions.</span>
+        </div>
+        <a class="btn btn-sm btn-primary"
+           asp-controller="Pix"
+           asp-action="PixSettings"
+           asp-route-walletId="@Model.WalletId"
+           asp-route-storeId="@Model.StoreId"
+        >
+            Add API Key
+        </a>
+    </div>
+}
+else if (!Model.ConfigStatus.PixEnabled)
+{
+    <div class="alert alert-warning d-flex align-items-center justify-content-between" role="alert">
+        <div>
+            <strong>Pix is disabled.</strong>
+            <span class="ms-2">Enable the Pix payment method to accept payments.</span>
+        </div>
+        <a class="btn btn-sm btn-primary @ViewData.ActivePageClass("PixSettings", typeof(BTCPayServer.Views.Wallets.WalletsNavPages).ToString())"
+           asp-controller="Pix"
+           asp-action="PixSettings"
+           asp-route-walletId="@Model.WalletId"
+           asp-route-storeId="@Model.StoreId"
+        >
+        Enable Pix
+        </a>
+    </div>
+}
+
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-3" id="Dropdowns">
+    <form method="get" class="row g-3 align-items-end flex-grow-1" id="Filter">
+        <div class="col-md-2">
+            <label class="form-label" text-translate="true">Status</label>
+            <select name="status" class="form-select">
+                <option value="" text-translate="true">All</option>
+                @foreach (var s in new[] { "completed","processing","pending","expired","cancelled" })
+                {
+                    <option value="@s" selected="@(statusFilter==s)">@s</option>
+                }
+            </select>
+        </div>
+        <div class="col-md-4">
+            <label class="form-label" text-translate="true">Search</label>
+            <input name="q" value="@query" class="form-control" placeholder="InvoiceId, Checkout ID, Depix Address..." />
+        </div>
+        <div class="col-md-2">
+            <label class="form-label" text-translate="true">From</label>
+            <input type="date" name="from" value="@from" class="form-control" />
+        </div>
+        <div class="col-md-2">
+            <label class="form-label" text-translate="true">To</label>
+            <input type="date" name="to" value="@to" class="form-control" />
+        </div>
+        <div class="col-md-2">
+            <button class="btn btn-primary w-100" type="submit" text-translate="true">Filter</button>
+        </div>
+    </form>
+</div>
+<div style="clear:both"></div>
+
+<div class="table-responsive-md" id="DepixTransactions">
+    <table class="table table-hover align-middle">
+        <thead class="table-light">
+        <tr>
+            <th class="date-col">
+                <div class="d-flex align-items-center gap-1">
+                    <span text-translate="true">Date</span>
+                    <button type="button" class="btn btn-link p-2 switch-time-format only-for-js" title="Switch date format" data-mode="local">
+                        <vc:icon symbol="time" />
+                    </button>
+                </div>
+            </th>
+            <th style="min-width: 210px;">Invoice</th>
+            <th>Checkout ID</th>
+            <th class="text-end">Amount</th>
+            <th>Status</th>
+            <th>Depix Address</th>
+        </tr>
+        </thead>
+        <tbody>
+        @foreach (var d in Model.Transactions)
+        {
+            var raw = d.DepixStatus?.ToString() ?? d.DepixStatusRaw;
+            <tr>
+                <td class="text-nowrap">
+                    <time datetime="@d.Created.UtcDateTime.ToString("o")">
+                        @d.Created.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
+                    </time>
+                </td>
+
+                <td>
+                    <a href="@($"/invoice?id={d.InvoiceId}")" target="_blank" rel="noopener">
+                        @d.InvoiceId
+                    </a>
+                </td>
+
+                <td>
+                    <span class="d-inline-block text-truncate clipboard-button" data-clipboard="@d.QrId"
+                          style="max-width:230px"
+                          data-bs-toggle="tooltip" data-bs-placement="top"
+                          title="@d.QrId">
+                        @d.QrId
+                    </span>
+                </td>
+
+                <td class="text-end">@d.AmountBrl</td>
+
+                <td><span class="badge @Badge(raw)">@raw</span></td>
+
+                <td>
+                    @if (!string.IsNullOrEmpty(d.DepixAddress))
+                    {
+                        <span class="d-inline-block text-truncate clipboard-button"
+                              data-clipboard="@d.DepixAddress"
+                              style="max-width:260px"
+                              data-bs-toggle="tooltip" data-bs-placement="top"
+                              title="@d.DepixAddress">
+                              @d.DepixAddress
+                        </span>
+                    }
+                    else { <span>-</span> }
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+</div>
+
+<noscript>
+    @* todo: pagination *@
+</noscript>
+
+<script>
+  document.querySelectorAll('[data-bs-toggle="tooltip"]')
+    .forEach(el => new bootstrap.Tooltip(el));
+</script>

@@ -43,7 +43,7 @@ All new code must be written in English — variable names, function names, comm
 ## File Structure
 
 ```
-BTCPayServer.Plugins.Depix/
+BTCPayServer.Plugins.DepixAppApp/
 ├── DePixPlugin.cs                          # Plugin entry point, DI registration, Liquid asset setup
 ├── Controllers/
 │   ├── PixController.cs                    # Store settings + transactions UI
@@ -75,7 +75,7 @@ BTCPayServer.Plugins.Depix/
 ├── Resources/img/                          # DePix icon assets
 └── Errors/                                 # Custom exception types
 
-BTCPayServer.Plugins.Depix.Tests/
+BTCPayServer.Plugins.DepixAppApp.Tests/
 ├── PlaywrightBaseTest.cs                   # Base class — server setup, config seeding, navigation helpers
 ├── PixSettingsTests.cs                     # Store settings UI tests
 ├── PixServerSettingsTests.cs               # Server settings UI tests
@@ -115,22 +115,22 @@ Tests use reflection to access the plugin assembly loaded at runtime by BTCPay S
 
 ```bash
 dotnet build                                                    # Build everything
-dotnet build BTCPayServer.Plugins.Depix/                       # Build plugin only
-dotnet test BTCPayServer.Plugins.Depix.Tests/ --filter "Category=PlaywrightUITest"  # Run Playwright tests
+dotnet build BTCPayServer.Plugins.DepixApp/                       # Build plugin only
+dotnet test BTCPayServer.Plugins.DepixApp.Tests/ --filter "Category=PlaywrightUITest"  # Run Playwright tests
 ```
 
 Note: `dotnet` is not installed on the local dev machine. Use CI (GitHub Actions) for build verification, or install .NET 10.0 SDK locally.
 
 ## Releasing a new version
 
-1. **Bump the version** in `BTCPayServer.Plugins.Depix/BTCPayServer.Plugins.Depix.csproj`:
+1. **Bump the version** in `BTCPayServer.Plugins.DepixApp/BTCPayServer.Plugins.DepixApp.csproj`:
    ```xml
    <Version>1.0.7</Version>
    ```
 
 2. **Commit and push to master**:
    ```bash
-   git add BTCPayServer.Plugins.Depix/BTCPayServer.Plugins.Depix.csproj
+   git add BTCPayServer.Plugins.DepixApp/BTCPayServer.Plugins.DepixApp.csproj
    git commit -m "chore: bump version to 1.0.7"
    git push git@github-personal:dadafros/depix-btcpay.git HEAD:master
    ```
@@ -141,7 +141,7 @@ Note: `dotnet` is not installed on the local dev machine. Use CI (GitHub Actions
    git push git@github-personal:dadafros/depix-btcpay.git v1.0.7
    ```
 
-4. **CI does the rest**: `.github/workflows/release.yml` triggers on `v*` tags, builds the plugin with `dotnet publish`, packages it as `BTCPayServer.Plugins.Depix.btcpay`, and creates a GitHub Release at `github.com/dadafros/depix-btcpay/releases/tag/v1.0.7` with the `.btcpay` file attached.
+4. **CI does the rest**: `.github/workflows/release.yml` triggers on `v*` tags, builds the plugin with `dotnet publish`, packages it as `BTCPayServer.Plugins.DepixApp.btcpay`, and creates a GitHub Release at `github.com/dadafros/depix-btcpay/releases/tag/v1.0.7` with the `.btcpay` file attached.
 
 If the tag needs to be moved after a fix (e.g. CI failed and you pushed another commit):
 ```bash
@@ -157,7 +157,7 @@ The plugin depends on the BTCPay Server codebase via the `submodules/btcpayserve
 
 ### On every commit
 
-Check the minimum version requirement in `BTCPayServer.Plugins.Depix/BTCPayServer.Plugins.Depix.csproj`:
+Check the minimum version requirement in `BTCPayServer.Plugins.DepixApp/BTCPayServer.Plugins.DepixApp.csproj`:
 ```xml
 <BTCPayMinVersion>2.3.7</BTCPayMinVersion>
 ```
