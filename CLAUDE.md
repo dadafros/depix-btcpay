@@ -221,3 +221,15 @@ git push git@github-personal:dadafros/depix-btcpay.git feat/my-feature
 - **Use PRs for large or complex work**: Large refactors or high-risk changes should go on a separate branch and be opened as a PR for review.
 - **User instruction wins**: If the user explicitly asks for a different flow, follow the user's instruction.
 - **Sync before branching**: If the work should go through a PR, always sync with `master` first before creating or updating the branch.
+
+## Git Worktrees
+
+Ciclo de vida completo em `~/.claude/CLAUDE.md`. Específico deste repo:
+
+- **Localização**: `.claude/worktrees/<branch-slug>/`
+- **Branch default**: `master` (não `main` — fork de BTCPay que usa `master`)
+- **Naming convention**: `feat/*` (features), `fix/*` (bugfixes)
+- **Fluxo padrão** (default): worktree com branch → commit → `git push origin HEAD:master` → cleanup imediato (remove worktree + delete branch + `git fetch --prune`)
+- **Fluxo PR** (trabalho grande/complexo, ver "Workflow Rules"): worktree → `git push -u origin <branch>` → `gh pr create` → após merge, mesmo cleanup
+- **Antes de criar**: `git worktree list` + `git branch -a` pra não duplicar trabalho existente
+- **Importante**: push sempre pro `dadafros/depix-btcpay` (NUNCA para upstream `thgO-O/btcpayserver-plugin-depix`). Use SSH com alias `github-personal`.
